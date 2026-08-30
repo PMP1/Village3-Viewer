@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Village Simulation Viewer</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-width: 320px; background: #0d1117; }
+        button, select, input { font: inherit; }
+        button, select {
+            min-height: 40px;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            background: #161b22;
+            color: #e6edf3;
+            padding: 0 12px;
+        }
+        button:hover { background: #21262d; }
+        button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid #58a6ff; outline-offset: 2px; }
+        button[aria-pressed="true"] { background: #1f6feb; border-color: #388bfd; }
+        .shell { padding: 16px; max-width: 1500px; margin: 0 auto; }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .time { font-weight: 700; min-width: 170px; }
+        .spacer { flex: 1; }
+        .speed-group { display: flex; gap: 6px; }
+        .timeline-row { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; margin-bottom: 14px; }
+        .timeline-row input { width: 100%; }
+        .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 390px); gap: 14px; }
+        .panel { border: 1px solid #30363d; border-radius: 10px; background: #0d1117; overflow: hidden; }
+        .panel-heading { padding: 10px 12px; border-bottom: 1px solid #30363d; background: #161b22; font-weight: 650; }
+        .map-wrap { position: relative; background: #090d12; }
+        #map { width: 100%; height: 640px; display: block; touch-action: manipulation; }
+        .map-note { position: absolute; left: 10px; bottom: 8px; font-size: 12px; color: #8b949e; pointer-events: none; }
+        .side { display: grid; gap: 14px; align-content: start; }
+        .events { height: 440px; overflow: auto; }
+        .event { padding: 9px 12px; border-bottom: 1px solid #21262d; font-size: 14px; line-height: 1.35; }
+        .event-time { color: #8b949e; font-size: 12px; margin-bottom: 2px; }
+        .empty { color: #8b949e; padding: 14px 12px; }
+        .inspector { padding: 12px; }
+        .inspector h2 { font-size: 18px; margin: 0 0 4px; }
+        .inspector .meta { color: #8b949e; margin-bottom: 10px; font-size: 13px; }
+        .kv { display: grid; grid-template-columns: minmax(95px, auto) 1fr; gap: 5px 10px; font-size: 13px; }
+        .kv dt { color: #8b949e; }
+        .kv dd { margin: 0; overflow-wrap: anywhere; }
+        .status { color: #8b949e; font-size: 13px; margin-left: auto; }
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+            #map { height: 500px; }
+            .events { height: 300px; }
+            .spacer { display: none; }
+            .status { width: 100%; margin-left: 0; }
+        }
+        @media (max-width: 520px) {
+            .shell { padding: 10px; }
+            .toolbar { gap: 7px; }
+            .time { width: 100%; }
+            .timeline-row { grid-template-columns: 1fr auto; }
+            .timeline-row input { grid-column: 1 / -1; grid-row: 2; }
+            #map { height: 410px; }
+            button, select { min-height: 44px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <div class="toolbar" aria-label="Playback controls">
+            <div id="time" class="time">Loading simulation…</div>
+            <button id="restart" type="button">Restart</button>
+            <button id="back" type="button" aria-label="Step back one tick">−1 tick</button>
+            <button id="play" type="button" aria-pressed="false">Play</button>
+            <button id="forward" type="button" aria-label="Step forward one tick">+1 tick</button>
+            <div class="spacer"></div>
+            <div class="speed-group" aria-label="Playback speed">
+                <button type="button" data-speed="1" aria-pressed="true">1×</button>
+                <button type="button" data-speed="5" aria-pressed="false">5×</button>
+                <button type="button" data-speed="20" aria-pressed="false">20×</button>
+            </div>
+            <div id="status" class="status" aria-live="polite"></div>
+        </div>
+
+        <div class="timeline-row">
+            <span>Tick <strong id="tick">0</strong></span>
+            <input id="timeline" type="range" min="0" max="0" value="0" step="1" aria-label="Simulation timeline">
+            <span id="duration">0 / 0</span>
+        </div>
+
+        <div class="layout">
+            <section class="panel" aria-label="Simulation map">
+                <div class="panel-heading">World view</div>
+                <div class="map-wrap">
+                    <canvas id="map" tabindex="0" aria-label="Simulation map. Select an entity by clicking it."></canvas>
+                    <div class="map-note">Positions are rendered from recorded simulation frames.</div>
+                </div>
+            </section>
+
+            <aside class="side">
+                <section class="panel">
+                    <div class="panel-heading">Events</div>
+                    <div id="events" class="events" aria-live="polite"></div>
+                </section>
+
+                <section class="panel">
+                    <div class="panel-heading">Selected entity</div>
+                    <div id="inspector" class="inspector">
+                        <div class="empty">Select a character, place, or object on the map.</div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+    </div>
+
+    <script type="module" src="./viewer.js"></script>
+</body>
+</html>
