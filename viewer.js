@@ -45,20 +45,34 @@ function humanize(value) {
         .replace(/^./, character => character.toUpperCase());
 }
 
+function rectangularFootprint(entity) {
+    return entity.geometry?.type === "rectangular-footprint" ? entity.geometry : undefined;
+}
+
 function calculateWorldBounds(frames) {
     let minX = Number.POSITIVE_INFINITY;
     let maxX = Number.NEGATIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let maxY = Number.NEGATIVE_INFINITY;
 
+    const include = (x, y) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+    };
+
     for (const frame of frames) {
         for (const entity of frame.entities ?? []) {
             const { x, y } = entity.position ?? {};
-            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
+            include(x, y);
+
+            const footprint = rectangularFootprint(entity);
+            if (footprint) {
+                include(footprint.origin.x, footprint.origin.y);
+                include(footprint.origin.x + footprint.width, footprint.origin.y + footprint.height);
+            }
         }
     }
 
@@ -166,7 +180,120 @@ function drawMovementTarget(entity, point, project) {
     context.restore();
 }
 
-function drawEntity(entity, point) {
+function footprintSidePoint(footprint, side, offset) {
+    if (side === "north") return { x: footprint.origin.x + offset, y: footprint.origin.y };
+    if (side === "south") return { x: footprint.origin.x + offset, y: footprint.origin.y + footprint.height };
+    if (side === "west") return { x: footprint.origin.x, y: footprint.origin.y + offset };
+    return { x: footprint.origin.x + footprint.width, y: footprint.origin.y + offset };
+}
+
+function footprintSideLength(footprint, side) {
+    return side === "north" || side === "south" ? footprint.width : footprint.height;
+}
+
+function strokeWorldSegment(project, from, to) {
+    const start = project(from);
+    const end = project(to);
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+}
+
+function drawFootprintSide(footprint, side, project, wallStroke) {
+    const doors = (footprint.doors ?? [])
+        .filter(door => door.side === side)
+        .sort((first, second) => first.offset - second.offset);
+    const length = footprintSideLength(footprint, side);
+    let cursor = 0;
+
+    context.strokeStyle = wallStroke;
+    context.lineWidth = 3;
+    context.setLineDash([]);
+    for (const door of doors) {
+        const start = clamp(door.offset, 0, length);
+        const end = clamp(door.offset + 1, 0, length);
+        if (start > cursor) {
+            strokeWorldSegment(
+                project,
+                footprintSidePoint(footprint, side, cursor),
+                footprintSidePoint(footprint, side, start)
+            );
+        }
+        cursor = Math.max(cursor, end);
+    }
+    if (cursor < length) {
+        strokeWorldSegment(
+            project,
+            footprintSidePoint(footprint, side, cursor),
+            footprintSidePoint(footprint, side, length)
+        );
+    }
+
+    for (const door of doors) {
+        context.strokeStyle = door.state === "open"
+            ? "#3fb950"
+            : door.state === "locked"
+                ? "#f85149"
+                : "#d29922";
+        context.lineWidth = door.state === "open" ? 2 : 4;
+        context.setLineDash(door.state === "open" ? [3, 3] : []);
+        strokeWorldSegment(
+            project,
+            footprintSidePoint(footprint, side, door.offset),
+            footprintSidePoint(footprint, side, door.offset + 1)
+        );
+    }
+    context.setLineDash([]);
+}
+
+function physicalBuildingScreenBounds(entity, project) {
+    const footprint = rectangularFootprint(entity);
+    if (!footprint) return undefined;
+    const first = project(footprint.origin);
+    const second = project({
+        x: footprint.origin.x + footprint.width,
+        y: footprint.origin.y + footprint.height
+    });
+    return {
+        left: Math.min(first.x, second.x),
+        right: Math.max(first.x, second.x),
+        top: Math.min(first.y, second.y),
+        bottom: Math.max(first.y, second.y)
+    };
+}
+
+function drawPhysicalBuilding(entity, project) {
+    const footprint = rectangularFootprint(entity);
+    if (!footprint) return false;
+    const selected = entity.id === selectedEntityId;
+    const bounds = physicalBuildingScreenBounds(entity, project);
+
+    context.save();
+    context.fillStyle = selected ? "rgba(242, 204, 96, 0.16)" : "rgba(137, 87, 229, 0.18)";
+    context.fillRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+
+    const wallStroke = selected ? "#f2cc60" : "#e6edf3";
+    for (const side of ["north", "east", "south", "west"]) {
+        drawFootprintSide(footprint, side, project, wallStroke);
+    }
+
+    const labelPoint = project({
+        x: footprint.origin.x + footprint.width / 2,
+        y: footprint.origin.y + footprint.height
+    });
+    context.font = "11px system-ui";
+    context.fillStyle = selected ? "#f2cc60" : "#c9d1d9";
+    context.textAlign = "center";
+    context.textBaseline = "bottom";
+    context.fillText(entity.label ?? entity.id, labelPoint.x, labelPoint.y - 5);
+    context.restore();
+    return true;
+}
+
+function drawEntity(entity, point, project) {
+    if (entity.subtype === "building" && drawPhysicalBuilding(entity, project)) return;
+
     const selected = entity.id === selectedEntityId;
     context.save();
     context.lineWidth = selected ? 3 : 1.5;
@@ -232,10 +359,14 @@ function renderMap() {
     drawGrid(project);
     drawSelectedTrail(project);
 
-    projectedEntities = frame.entities.map(entity => ({ entity, point: project(entity.position) }));
+    projectedEntities = frame.entities.map(entity => ({
+        entity,
+        point: project(entity.position),
+        bounds: physicalBuildingScreenBounds(entity, project)
+    }));
     for (const { entity, point } of projectedEntities) drawMovementTarget(entity, point, project);
-    for (const { entity, point } of projectedEntities.filter(item => item.entity.category !== "character")) drawEntity(entity, point);
-    for (const { entity, point } of projectedEntities.filter(item => item.entity.category === "character")) drawEntity(entity, point);
+    for (const { entity, point } of projectedEntities.filter(item => item.entity.category !== "character")) drawEntity(entity, point, project);
+    for (const { entity, point } of projectedEntities.filter(item => item.entity.category === "character")) drawEntity(entity, point, project);
 }
 
 function addDefinitionListRow(list, key, value) {
@@ -278,6 +409,20 @@ function renderInspector() {
     if (entity.state?.movementTarget) {
         addDefinitionListRow(list, "movement target", `${formatNumber(entity.state.movementTarget.x)}, ${formatNumber(entity.state.movementTarget.y)}`);
     }
+
+    const footprint = rectangularFootprint(entity);
+    if (footprint) {
+        addDefinitionListRow(list, "footprint", `${formatNumber(footprint.width)} × ${formatNumber(footprint.height)} m`);
+        addDefinitionListRow(list, "footprint origin", `${formatNumber(footprint.origin.x)}, ${formatNumber(footprint.origin.y)}`);
+        if ((footprint.doors ?? []).length > 0) {
+            addDefinitionListRow(
+                list,
+                "doors",
+                footprint.doors.map(door => `${humanize(door.side)} ${door.state}`).join(", ")
+            );
+        }
+    }
+
     for (const [key, value] of Object.entries(entity.properties ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
         addDefinitionListRow(list, key, value === null ? "—" : value);
     }
@@ -397,7 +542,12 @@ function handleCanvasSelection(event) {
     let nearest;
     let nearestDistance = 20;
     for (const item of projectedEntities) {
-        const distance = Math.hypot(item.point.x - x, item.point.y - y);
+        const insidePhysicalFootprint = item.bounds &&
+            x >= item.bounds.left && x <= item.bounds.right &&
+            y >= item.bounds.top && y <= item.bounds.bottom;
+        const distance = insidePhysicalFootprint
+            ? 0
+            : Math.hypot(item.point.x - x, item.point.y - y);
         if (distance < nearestDistance) {
             nearest = item.entity;
             nearestDistance = distance;
