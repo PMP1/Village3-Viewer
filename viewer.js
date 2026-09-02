@@ -1,4 +1,7 @@
 const SCHEMA_VERSION = 1;
+const CHARACTER_DIAMETER_METRES = 0.6;
+const CHARACTER_MIN_RADIUS_PIXELS = 2;
+const CHARACTER_SELECTION_RING_GAP_PIXELS = 4;
 const root = document;
 const canvas = root.querySelector("#map");
 const context = canvas.getContext("2d");
@@ -98,11 +101,12 @@ function projection() {
     const drawnHeight = worldHeight * scale;
     const left = (canvasWidth - drawnWidth) / 2;
     const top = (canvasHeight - drawnHeight) / 2;
-
-    return position => ({
+    const project = position => ({
         x: left + (position.x - worldBounds.minX) * scale,
         y: top + drawnHeight - (position.y - worldBounds.minY) * scale
     });
+    project.scale = scale;
+    return project;
 }
 
 function drawGrid(project) {
@@ -291,60 +295,90 @@ function drawPhysicalBuilding(entity, project) {
     return true;
 }
 
+function characterScreenRadius(project) {
+    return Math.max(
+        CHARACTER_MIN_RADIUS_PIXELS,
+        project.scale * CHARACTER_DIAMETER_METRES / 2
+    );
+}
+
 function drawEntity(entity, point, project) {
     if (entity.subtype === "building" && drawPhysicalBuilding(entity, project)) return;
 
     const selected = entity.id === selectedEntityId;
     context.save();
-    context.lineWidth = selected ? 3 : 1.5;
-    context.strokeStyle = selected ? "#f2cc60" : "#e6edf3";
 
     if (entity.category === "character") {
+        const radius = characterScreenRadius(project);
         context.fillStyle = "#58a6ff";
+        context.strokeStyle = "#e6edf3";
+        context.lineWidth = 1.25;
         context.beginPath();
-        context.arc(point.x, point.y, selected ? 9 : 7, 0, Math.PI * 2);
+        context.arc(point.x, point.y, radius, 0, Math.PI * 2);
         context.fill();
         context.stroke();
-    } else if (entity.subtype === "building") {
-        const visualSize = entity.properties?.visualSize;
-        const size = visualSize === "large" ? 16 : visualSize === "medium" ? 13 : 10;
-        context.fillStyle = "#8957e5";
-        context.fillRect(point.x - size / 2, point.y - size / 2, size, size);
-        context.strokeRect(point.x - size / 2, point.y - size / 2, size, size);
-    } else if (entity.subtype === "fountain") {
-        context.fillStyle = "#39c5cf";
-        context.beginPath();
-        context.arc(point.x, point.y, 8, 0, Math.PI * 2);
-        context.fill();
-        context.stroke();
-        context.beginPath();
-        context.moveTo(point.x - 5, point.y);
-        context.lineTo(point.x + 5, point.y);
-        context.moveTo(point.x, point.y - 5);
-        context.lineTo(point.x, point.y + 5);
-        context.stroke();
-    } else if (entity.category === "object") {
-        context.fillStyle = "#d29922";
-        context.beginPath();
-        context.moveTo(point.x, point.y - 8);
-        context.lineTo(point.x + 8, point.y + 7);
-        context.lineTo(point.x - 8, point.y + 7);
-        context.closePath();
-        context.fill();
-        context.stroke();
+
+        if (selected) {
+            context.strokeStyle = "#f2cc60";
+            context.lineWidth = 2;
+            context.beginPath();
+            context.arc(
+                point.x,
+                point.y,
+                radius + CHARACTER_SELECTION_RING_GAP_PIXELS,
+                0,
+                Math.PI * 2
+            );
+            context.stroke();
+        }
     } else {
-        context.fillStyle = "#8b949e";
-        context.beginPath();
-        context.arc(point.x, point.y, 6, 0, Math.PI * 2);
-        context.fill();
-        context.stroke();
+        context.lineWidth = selected ? 3 : 1.5;
+        context.strokeStyle = selected ? "#f2cc60" : "#e6edf3";
+
+        if (entity.subtype === "building") {
+            const visualSize = entity.properties?.visualSize;
+            const size = visualSize === "large" ? 16 : visualSize === "medium" ? 13 : 10;
+            context.fillStyle = "#8957e5";
+            context.fillRect(point.x - size / 2, point.y - size / 2, size, size);
+            context.strokeRect(point.x - size / 2, point.y - size / 2, size, size);
+        } else if (entity.subtype === "fountain") {
+            context.fillStyle = "#39c5cf";
+            context.beginPath();
+            context.arc(point.x, point.y, 8, 0, Math.PI * 2);
+            context.fill();
+            context.stroke();
+            context.beginPath();
+            context.moveTo(point.x - 5, point.y);
+            context.lineTo(point.x + 5, point.y);
+            context.moveTo(point.x, point.y - 5);
+            context.lineTo(point.x, point.y + 5);
+            context.stroke();
+        } else if (entity.category === "object") {
+            context.fillStyle = "#d29922";
+            context.beginPath();
+            context.moveTo(point.x, point.y - 8);
+            context.lineTo(point.x + 8, point.y + 7);
+            context.lineTo(point.x - 8, point.y + 7);
+            context.closePath();
+            context.fill();
+            context.stroke();
+        } else {
+            context.fillStyle = "#8b949e";
+            context.beginPath();
+            context.arc(point.x, point.y, 6, 0, Math.PI * 2);
+            context.fill();
+            context.stroke();
+        }
     }
 
+    const labelOffset = entity.category === "character"
+        ? characterScreenRadius(project) + 5
+        : 11;
     context.font = entity.category === "character" ? "600 12px system-ui" : "11px system-ui";
     context.fillStyle = selected ? "#f2cc60" : "#c9d1d9";
     context.textAlign = "center";
     context.textBaseline = "bottom";
-    context.fillText(entity.label ?? entity.id, point.x, point.y - 11);
+    context.fillText(entity.label ?? entity.id, point.x, point.y - labelOffset);
     context.restore();
 }
 
