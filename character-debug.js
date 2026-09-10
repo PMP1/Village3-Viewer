@@ -10,6 +10,7 @@
 
     const statDefinitions = [
         { key: "hunger", label: "Hunger" },
+        { key: "fullness", label: "Full" },
         { key: "thirst", label: "Thirst" },
         { key: "tiredness", label: "Tired" },
         { key: "socialNeed", label: "Social" }
