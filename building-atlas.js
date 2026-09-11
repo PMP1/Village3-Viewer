@@ -47,7 +47,11 @@ const BUILDING_SPRITES = Object.freeze({
 });
 
 const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_VERTICAL = Object.freeze({"anchorX":16,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL = Object.freeze({"anchorX":16,"anchorY":32,"drawHeight":32,"drawWidth":32,"sourceHeight":32,"sourceWidth":32,"sourceX":0,"sourceY":0});
+// Exterior L corners already contain the first/last metre of each north/south run.
+// Keep the semantic end segment but draw a transparent source pixel so call ordering
+// and door overrides stay unchanged while the corner owns that visible geometry.
+const PNG_CORNER_OWNED_SIDE_END = Object.freeze({"anchorX":0,"anchorY":0,"drawHeight":1,"drawWidth":1,"sourceHeight":1,"sourceWidth":1,"sourceX":0,"sourceY":0});
 const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_CORNER_SOUTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
@@ -67,8 +71,8 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.wall.end.west": PNG_HORIZONTAL,
     "building.exterior.wall.end.east.cutaway": PNG_CUTAWAY,
     "building.exterior.wall.end.west.cutaway": PNG_CUTAWAY,
-    "building.exterior.wall.end.north": PNG_VERTICAL,
-    "building.exterior.wall.end.south": PNG_VERTICAL,
+    "building.exterior.wall.end.north": PNG_CORNER_OWNED_SIDE_END,
+    "building.exterior.wall.end.south": PNG_CORNER_OWNED_SIDE_END,
     "building.interior.wall.horizontal": PNG_HORIZONTAL,
     "building.interior.wall.vertical": PNG_VERTICAL,
     "building.interior.wall.corner.nw": PNG_CORNER_NORTH,
