@@ -52,10 +52,13 @@ const PNG_VERTICAL = Object.freeze({"anchorX":16,"anchorY":32,"drawHeight":32,"d
 // Keep the semantic end segment but draw a transparent source pixel so call ordering
 // and door overrides stay unchanged while the corner owns that visible geometry.
 const PNG_CORNER_OWNED_SIDE_END = Object.freeze({"anchorX":0,"anchorY":0,"drawHeight":1,"drawWidth":1,"sourceHeight":1,"sourceWidth":1,"sourceX":0,"sourceY":0});
-const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_CORNER_SOUTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+// In the north-up viewer, north/back corners extend their one-metre side arm down
+// from the horizontal base; south/front corners extend their arm upward.
+const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CORNER_SOUTH = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_CUTAWAY_NORTH = Object.freeze({"anchorX":0,"anchorY":56,"drawHeight":56,"drawWidth":32,"sourceHeight":56,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CUTAWAY_NORTH = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":56,"drawWidth":32,"sourceHeight":56,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CUTAWAY_SOUTH = Object.freeze({"anchorX":0,"anchorY":56,"drawHeight":56,"drawWidth":32,"sourceHeight":56,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
 const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.wall.horizontal": PNG_HORIZONTAL,
@@ -67,6 +70,8 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.wall.corner.se": PNG_CORNER_SOUTH,
     "building.exterior.wall.corner.nw.cutaway": PNG_CUTAWAY_NORTH,
     "building.exterior.wall.corner.ne.cutaway": PNG_CUTAWAY_NORTH,
+    "building.exterior.wall.corner.sw.cutaway": PNG_CUTAWAY_SOUTH,
+    "building.exterior.wall.corner.se.cutaway": PNG_CUTAWAY_SOUTH,
     "building.exterior.wall.end.east": PNG_HORIZONTAL,
     "building.exterior.wall.end.west": PNG_HORIZONTAL,
     "building.exterior.wall.end.east.cutaway": PNG_CUTAWAY,
@@ -95,6 +100,8 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.exterior.wall.corner.se": BUILDING_WALL_PNG_DIRECTORY + "corner_se.png",
     "building.exterior.wall.corner.nw.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_nw_cutaway.png",
     "building.exterior.wall.corner.ne.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_ne_cutaway.png",
+    "building.exterior.wall.corner.sw.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_sw_cutaway.png",
+    "building.exterior.wall.corner.se.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_se_cutaway.png",
     "building.exterior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.end.east.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",

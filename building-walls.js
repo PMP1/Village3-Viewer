@@ -73,15 +73,18 @@
         else if (segment.role === "doorway") suffix = "doorway." + segment.orientation;
         else if (segment.role.startsWith("door-")) suffix = "door." + segment.role.slice(5) + "." + segment.orientation;
         else suffix = "wall." + segment.orientation;
-        // Current projection inverts Y: the simulation's north side is screen-near.
+        // map-features.js keeps navigation north at the top of the screen by
+        // projecting increasing world Y downward. South is therefore screen-near.
         // Keep door frames/leaves full height; only the near exterior wall is low.
-        const low = segment.layer === "exterior" && segment.side === "north" && !segment.role.startsWith("door");
+        const low = segment.layer === "exterior" && segment.side === "south" && !segment.role.startsWith("door");
         return prefix + suffix + (low ? ".cutaway" : "");
     }
 
     function painterOrder(segments) {
-        // High world Y is screen-back. Horizontal caps finish equal-base joins.
-        return [...segments].sort((a, b) => b.y - a.y ||
+        // Low world Y is screen-back in the north-up projection. Paint it first,
+        // then move toward larger Y so nearer walls finish over farther walls.
+        // Horizontal caps finish equal-base joins.
+        return [...segments].sort((a, b) => a.y - b.y ||
             Number(a.orientation === "horizontal") - Number(b.orientation === "horizontal") ||
             a.x - b.x);
     }
