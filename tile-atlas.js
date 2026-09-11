@@ -55,38 +55,6 @@ drawTile = function(tileId, worldX, worldY, project, width = 1, height = 1) {
     drawTileBeforeAtlas(tileId, worldX, worldY, project, width, height);
 };
 
-function partitionDoorAtOffset(partition, offset) {
-    return (partition.doors ?? []).find(door => offset >= door.offset && offset < door.offset + 1);
-}
-
-function drawPartitionTiles(footprint, project) {
-    for (const partition of footprint.partitions ?? []) {
-        const horizontal = partition.side === "north" || partition.side === "south";
-        for (let offset = 0; offset < partition.length; offset++) {
-            const door = partitionDoorAtOffset(partition, offset);
-            const x = partition.origin.x + (horizontal ? offset : 0);
-            const y = partition.origin.y + (horizontal ? 0 : offset);
-            drawTile(
-                door
-                    ? doorTileId(partition.side, door.state)
-                    : horizontal ? TILE_IDS.wallHorizontal : TILE_IDS.wallVertical,
-                x,
-                y,
-                project
-            );
-        }
-    }
-}
-
-const drawPhysicalBuildingBeforeAtlas = drawPhysicalBuilding;
-drawPhysicalBuilding = function(entity, project) {
-    const rendered = drawPhysicalBuildingBeforeAtlas(entity, project);
-    if (!rendered) return false;
-    const footprint = rectangularFootprint(entity);
-    if (footprint) drawPartitionTiles(footprint, project);
-    return true;
-};
-
 function fixtureTileId(entity) {
     if (entity.properties?.facilityType === "hearth") return "fixture.hearth";
     if (entity.properties?.resourceType === "bed") return "fixture.bed";

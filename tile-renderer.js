@@ -56,66 +56,6 @@ function drawWoodFloorTile(tileContext, size) {
     tileContext.fillRect(17, 17, 11, 2);
 }
 
-function drawStoneBand(tileContext, size, vertical) {
-    tileContext.clearRect(0, 0, size, size);
-    tileContext.fillStyle = "#88806f";
-    if (vertical) tileContext.fillRect(8, 0, 16, size);
-    else tileContext.fillRect(0, 8, size, 16);
-
-    tileContext.fillStyle = "#a29a87";
-    if (vertical) {
-        for (let y = 1; y < size; y += 8) {
-            const offset = Math.floor(y / 8) % 2 === 0 ? 0 : 5;
-            tileContext.fillRect(10, y, 12, 5);
-            tileContext.fillStyle = "#70695c";
-            tileContext.fillRect(10, y + 5, 12, 1);
-            tileContext.fillRect(15 + offset % 4, y, 1, 5);
-            tileContext.fillStyle = "#a29a87";
-        }
-    } else {
-        for (let x = 1; x < size; x += 8) {
-            const offset = Math.floor(x / 8) % 2 === 0 ? 0 : 3;
-            tileContext.fillRect(x, 10, 5, 12);
-            tileContext.fillStyle = "#70695c";
-            tileContext.fillRect(x + 5, 10, 1, 12);
-            tileContext.fillRect(x, 15 + offset % 4, 5, 1);
-            tileContext.fillStyle = "#a29a87";
-        }
-    }
-}
-
-function drawDoorTile(tileContext, size, vertical, state) {
-    drawStoneBand(tileContext, size, vertical);
-    const locked = state === "locked";
-    const open = state === "open";
-    const wood = locked ? "#9c4a3f" : "#8d5d35";
-    const darkWood = locked ? "#642e29" : "#5d3c25";
-
-    if (vertical) {
-        tileContext.clearRect(8, 5, 16, size - 10);
-        tileContext.fillStyle = darkWood;
-        tileContext.fillRect(8, 4, 4, size - 8);
-        tileContext.fillRect(20, 4, 4, size - 8);
-        if (!open) {
-            tileContext.fillStyle = wood;
-            tileContext.fillRect(12, 6, 8, size - 12);
-            tileContext.fillStyle = darkWood;
-            tileContext.fillRect(14, 8, 1, size - 16);
-        }
-    } else {
-        tileContext.clearRect(5, 8, size - 10, 16);
-        tileContext.fillStyle = darkWood;
-        tileContext.fillRect(4, 8, size - 8, 4);
-        tileContext.fillRect(4, 20, size - 8, 4);
-        if (!open) {
-            tileContext.fillStyle = wood;
-            tileContext.fillRect(6, 12, size - 12, 8);
-            tileContext.fillStyle = darkWood;
-            tileContext.fillRect(8, 14, size - 16, 1);
-        }
-    }
-}
-
 function tileCanvas(tileId) {
     const cached = tileCanvases.get(tileId);
     if (cached) return cached;
@@ -130,30 +70,6 @@ function tileCanvas(tileId) {
             break;
         case TILE_IDS.woodFloor:
             tile = createTileCanvas(drawWoodFloorTile);
-            break;
-        case TILE_IDS.wallHorizontal:
-            tile = createTileCanvas((tileContext, size) => drawStoneBand(tileContext, size, false));
-            break;
-        case TILE_IDS.wallVertical:
-            tile = createTileCanvas((tileContext, size) => drawStoneBand(tileContext, size, true));
-            break;
-        case TILE_IDS.doorHorizontalOpen:
-            tile = createTileCanvas((tileContext, size) => drawDoorTile(tileContext, size, false, "open"));
-            break;
-        case TILE_IDS.doorHorizontalClosed:
-            tile = createTileCanvas((tileContext, size) => drawDoorTile(tileContext, size, false, "closed"));
-            break;
-        case TILE_IDS.doorHorizontalLocked:
-            tile = createTileCanvas((tileContext, size) => drawDoorTile(tileContext, size, false, "locked"));
-            break;
-        case TILE_IDS.doorVerticalOpen:
-            tile = createTileCanvas((tileContext, size) => drawDoorTile(tileContext, size, true, "open"));
-            break;
-        case TILE_IDS.doorVerticalClosed:
-            tile = createTileCanvas((tileContext, size) => drawDoorTile(tileContext, size, true, "closed"));
-            break;
-        case TILE_IDS.doorVerticalLocked:
-            tile = createTileCanvas((tileContext, size) => drawDoorTile(tileContext, size, true, "locked"));
             break;
         default:
             tile = createTileCanvas((tileContext, size) => {
@@ -245,22 +161,6 @@ function drawWorldTiles(project) {
     context.restore();
 }
 
-function doorAtOffset(footprint, side, offset) {
-    return (footprint.doors ?? []).find(door => door.side === side && offset >= door.offset && offset < door.offset + 1);
-}
-
-function doorTileId(side, state) {
-    const vertical = side === "east" || side === "west";
-    if (vertical) {
-        if (state === "open") return TILE_IDS.doorVerticalOpen;
-        if (state === "locked") return TILE_IDS.doorVerticalLocked;
-        return TILE_IDS.doorVerticalClosed;
-    }
-    if (state === "open") return TILE_IDS.doorHorizontalOpen;
-    if (state === "locked") return TILE_IDS.doorHorizontalLocked;
-    return TILE_IDS.doorHorizontalClosed;
-}
-
 function drawBuildingFloor(footprint, project) {
     const minX = Math.floor(footprint.origin.x);
     const minY = Math.floor(footprint.origin.y);
@@ -271,47 +171,17 @@ function drawBuildingFloor(footprint, project) {
     }
 }
 
-function drawBuildingHorizontalEdge(footprint, side, project) {
-    const cellY = side === "north"
-        ? footprint.origin.y
-        : footprint.origin.y + footprint.height - 1;
-    const cellCount = Math.ceil(footprint.width);
-    for (let offset = 0; offset < cellCount; offset++) {
-        const door = doorAtOffset(footprint, side, offset);
-        drawTile(
-            door ? doorTileId(side, door.state) : TILE_IDS.wallHorizontal,
-            footprint.origin.x + offset,
-            cellY,
-            project
-        );
-    }
-}
-
-function drawBuildingVerticalEdge(footprint, side, project) {
-    const cellX = side === "west"
-        ? footprint.origin.x
-        : footprint.origin.x + footprint.width - 1;
-    const cellCount = Math.ceil(footprint.height);
-    for (let offset = 0; offset < cellCount; offset++) {
-        const door = doorAtOffset(footprint, side, offset);
-        drawTile(
-            door ? doorTileId(side, door.state) : TILE_IDS.wallVertical,
-            cellX,
-            footprint.origin.y + offset,
-            project
-        );
-    }
-}
-
 function drawBuildingTiles(entity, project) {
     const footprint = rectangularFootprint(entity);
     if (!footprint) return false;
 
     drawBuildingFloor(footprint, project);
-    drawBuildingHorizontalEdge(footprint, "north", project);
-    drawBuildingHorizontalEdge(footprint, "south", project);
-    drawBuildingVerticalEdge(footprint, "west", project);
-    drawBuildingVerticalEdge(footprint, "east", project);
+    // All floors precede raised artwork. Sort both wall layers together so
+    // nearer edges finish joins instead of being covered by farther partitions.
+    if (typeof drawBuildingSegments === "function") drawBuildingSegments([
+        ...window.VillageBuildingWalls.extractExterior(footprint),
+        ...window.VillageBuildingWalls.extractInterior(footprint)
+    ], project);
 
     const selected = entity.id === selectedEntityId;
     if (selected) {
@@ -366,8 +236,8 @@ function drawRoomTileOverlay(entity, project) {
 
 // Keep the simulation/view contract untouched: this layer consumes the existing
 // metre-based view geometry and turns it into reusable one-metre visual tiles.
-// The procedural tile canvases are intentionally behind semantic tile ids so a
-// real tilesheet can replace them later without changing building/world logic.
+// Terrain/floor fallback canvases remain compatible with the original tile atlas.
+// Wall and door artwork comes exclusively from the fixed building atlas.
 drawGrid = function(project) {
     drawWorldTiles(project);
 };

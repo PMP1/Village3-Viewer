@@ -487,8 +487,11 @@ function drawEntity(entity, point, project) {
 }
 
 function onScreen(item) {
-    if (item.bounds) return item.bounds.right >= -40 && item.bounds.left <= canvasWidth + 40 && item.bounds.bottom >= -40 && item.bounds.top <= canvasHeight + 40;
-    return item.point.x >= -40 && item.point.x <= canvasWidth + 40 && item.point.y >= -40 && item.point.y <= canvasHeight + 40;
+    // Raised building art can remain visible outside its logical hit bounds.
+    // Expand culling only; selection and physical footprint geometry stay exact.
+    const margin = rectangularFootprint(item.entity) ? Math.max(40, camera.scale * 2) : 40;
+    if (item.bounds) return item.bounds.right >= -margin && item.bounds.left <= canvasWidth + margin && item.bounds.bottom >= -margin && item.bounds.top <= canvasHeight + margin;
+    return item.point.x >= -margin && item.point.x <= canvasWidth + margin && item.point.y >= -margin && item.point.y <= canvasHeight + margin;
 }
 
 function renderMap() {
