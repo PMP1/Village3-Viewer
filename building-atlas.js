@@ -1,5 +1,7 @@
 // Fixed source rectangles and pixel anchors; 32 art pixels remain one world metre.
+// Doors still use the legacy SVG atlas. Wall geometry now uses editable PNG templates.
 const BUILDING_ATLAS_PATH = "./assets/village-building-walls.svg";
+const BUILDING_WALL_PNG_DIRECTORY = "./assets/building-walls-png/";
 const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.closed.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":0},
     "building.exterior.door.closed.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":64},
@@ -43,15 +45,98 @@ const BUILDING_SPRITES = Object.freeze({
     "building.interior.wall.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":64,"sourceY":64},
     "building.interior.wall.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":96,"sourceY":64}
 });
+
+const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL = Object.freeze({"anchorX":16,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CORNER_SOUTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CUTAWAY_NORTH = Object.freeze({"anchorX":0,"anchorY":56,"drawHeight":56,"drawWidth":32,"sourceHeight":56,"sourceWidth":32,"sourceX":0,"sourceY":0});
+
+const BUILDING_PNG_SPRITES = Object.freeze({
+    "building.exterior.wall.horizontal": PNG_HORIZONTAL,
+    "building.exterior.wall.horizontal.cutaway": PNG_CUTAWAY,
+    "building.exterior.wall.vertical": PNG_VERTICAL,
+    "building.exterior.wall.corner.nw": PNG_CORNER_NORTH,
+    "building.exterior.wall.corner.ne": PNG_CORNER_NORTH,
+    "building.exterior.wall.corner.sw": PNG_CORNER_SOUTH,
+    "building.exterior.wall.corner.se": PNG_CORNER_SOUTH,
+    "building.exterior.wall.corner.nw.cutaway": PNG_CUTAWAY_NORTH,
+    "building.exterior.wall.corner.ne.cutaway": PNG_CUTAWAY_NORTH,
+    "building.exterior.wall.end.east": PNG_HORIZONTAL,
+    "building.exterior.wall.end.west": PNG_HORIZONTAL,
+    "building.exterior.wall.end.east.cutaway": PNG_CUTAWAY,
+    "building.exterior.wall.end.west.cutaway": PNG_CUTAWAY,
+    "building.exterior.wall.end.north": PNG_VERTICAL,
+    "building.exterior.wall.end.south": PNG_VERTICAL,
+    "building.interior.wall.horizontal": PNG_HORIZONTAL,
+    "building.interior.wall.vertical": PNG_VERTICAL,
+    "building.interior.wall.corner.nw": PNG_CORNER_NORTH,
+    "building.interior.wall.corner.ne": PNG_CORNER_NORTH,
+    "building.interior.wall.corner.sw": PNG_CORNER_SOUTH,
+    "building.interior.wall.corner.se": PNG_CORNER_SOUTH,
+    "building.interior.wall.end.east": PNG_HORIZONTAL,
+    "building.interior.wall.end.west": PNG_HORIZONTAL,
+    "building.interior.wall.end.north": PNG_VERTICAL,
+    "building.interior.wall.end.south": PNG_VERTICAL
+});
+
+const BUILDING_PNG_PATHS = Object.freeze({
+    "building.exterior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
+    "building.exterior.wall.horizontal.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
+    "building.exterior.wall.vertical": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.exterior.wall.corner.nw": BUILDING_WALL_PNG_DIRECTORY + "corner_nw.png",
+    "building.exterior.wall.corner.ne": BUILDING_WALL_PNG_DIRECTORY + "corner_ne.png",
+    "building.exterior.wall.corner.sw": BUILDING_WALL_PNG_DIRECTORY + "corner_sw.png",
+    "building.exterior.wall.corner.se": BUILDING_WALL_PNG_DIRECTORY + "corner_se.png",
+    "building.exterior.wall.corner.nw.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_nw_cutaway.png",
+    "building.exterior.wall.corner.ne.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_ne_cutaway.png",
+    "building.exterior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
+    "building.exterior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
+    "building.exterior.wall.end.east.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
+    "building.exterior.wall.end.west.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
+    "building.exterior.wall.end.north": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.exterior.wall.end.south": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.interior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
+    "building.interior.wall.vertical": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.interior.wall.corner.nw": BUILDING_WALL_PNG_DIRECTORY + "corner_nw.png",
+    "building.interior.wall.corner.ne": BUILDING_WALL_PNG_DIRECTORY + "corner_ne.png",
+    "building.interior.wall.corner.sw": BUILDING_WALL_PNG_DIRECTORY + "corner_sw.png",
+    "building.interior.wall.corner.se": BUILDING_WALL_PNG_DIRECTORY + "corner_se.png",
+    "building.interior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
+    "building.interior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
+    "building.interior.wall.end.north": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.interior.wall.end.south": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png"
+});
+
+const BUILDING_RESOLVED_SPRITES = Object.freeze({ ...BUILDING_SPRITES, ...BUILDING_PNG_SPRITES });
 const buildingAtlasImage = new Image();
+const buildingPngImages = Object.create(null);
+const buildingPngPaths = [...new Set(Object.values(BUILDING_PNG_PATHS))];
+let pendingBuildingImages = buildingPngPaths.length + 1;
 let buildingAtlasReady = false;
 let buildingAtlasFailed = false;
-buildingAtlasImage.addEventListener("load", () => {
-    buildingAtlasReady = true;
-    if (recording && cameraInitialised) renderMap();
-});
-buildingAtlasImage.addEventListener("error", () => { buildingAtlasFailed = true; });
+
+function settleBuildingImage(failed = false) {
+    if (failed) buildingAtlasFailed = true;
+    pendingBuildingImages -= 1;
+    if (pendingBuildingImages === 0 && !buildingAtlasFailed) {
+        buildingAtlasReady = true;
+        if (recording && cameraInitialised) renderMap();
+    }
+}
+
+buildingAtlasImage.addEventListener("load", () => settleBuildingImage());
+buildingAtlasImage.addEventListener("error", () => settleBuildingImage(true));
 buildingAtlasImage.src = window.__VILLAGE_VIEWER_ASSETS__?.[BUILDING_ATLAS_PATH] ?? BUILDING_ATLAS_PATH;
+
+for (const path of buildingPngPaths) {
+    const image = new Image();
+    buildingPngImages[path] = image;
+    image.addEventListener("load", () => settleBuildingImage());
+    image.addEventListener("error", () => settleBuildingImage(true));
+    image.src = window.__VILLAGE_VIEWER_ASSETS__?.[path] ?? path;
+}
 
 function buildingSpriteRect(segment, sprite, project) {
     const base = project({ x: segment.x, y: segment.y });
@@ -70,17 +155,23 @@ function drawBuildingSegments(segments, project) {
     if (!buildingAtlasReady) return;
     context.imageSmoothingEnabled = false;
     for (const segment of window.VillageBuildingWalls.painterOrder(segments)) {
-        const sprite = BUILDING_SPRITES[window.VillageBuildingWalls.spriteId(segment)];
+        const id = window.VillageBuildingWalls.spriteId(segment);
+        const sprite = BUILDING_RESOLVED_SPRITES[id];
         if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
+        const path = BUILDING_PNG_PATHS[id];
+        const image = path ? buildingPngImages[path] : buildingAtlasImage;
         const rect = buildingSpriteRect(segment, sprite, project);
-        context.drawImage(buildingAtlasImage,
+        context.drawImage(image,
             sprite.sourceX, sprite.sourceY, sprite.sourceWidth, sprite.sourceHeight,
             rect.x, rect.y, rect.width, rect.height);
     }
 }
 
 window.VillageBuildingAtlas = Object.freeze({
-    source: BUILDING_ATLAS_PATH, sprites: BUILDING_SPRITES, spriteRect: buildingSpriteRect,
+    source: BUILDING_ATLAS_PATH,
+    imageSources: BUILDING_PNG_PATHS,
+    sprites: BUILDING_RESOLVED_SPRITES,
+    spriteRect: buildingSpriteRect,
     get ready() { return buildingAtlasReady; },
     get failed() { return buildingAtlasFailed; }
 });
