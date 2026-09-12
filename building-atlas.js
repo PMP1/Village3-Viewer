@@ -47,10 +47,11 @@ const BUILDING_SPRITES = Object.freeze({
 });
 
 const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-// Side walls need both their 1 m projected top strip and the visible inside face.
-// West art sits wholly inside/east of the west boundary; east art mirrors it inside/west.
-const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":32,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":32,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
+// Side walls share the full 96 px height of their L corners: 64 px of visible
+// wall face plus the final 32 px projected metre. They stay narrow inside the
+// 32 px canvas; west/east only mirror which physical boundary they hug.
+const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 // In the north-up viewer, north/back corners extend their one-metre side arm down
 // from the horizontal base; south/front corners extend their arm upward.
 const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
