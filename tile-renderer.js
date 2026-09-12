@@ -172,11 +172,11 @@ function drawBuildingFloor(footprint, project) {
     }
 }
 
-function buildingWallSegments(entity) {
+function buildingWallSegments(entity, project) {
     const footprint = rectangularFootprint(entity);
     if (!footprint || !window.VillageBuildingWalls) return [];
     return [
-        ...window.VillageBuildingWalls.extractExterior(footprint),
+        ...window.VillageBuildingWalls.extractExterior(footprint, project),
         ...window.VillageBuildingWalls.extractInterior(footprint)
     ];
 }
@@ -219,7 +219,7 @@ function drawBuildingOverlay(entity, project) {
 
 function drawBuildingTiles(entity, project) {
     if (!drawBuildingGround(entity, project)) return false;
-    if (typeof drawBuildingSegments === "function") drawBuildingSegments(buildingWallSegments(entity), project);
+    if (typeof drawBuildingSegments === "function") drawBuildingSegments(buildingWallSegments(entity, project), project);
     drawBuildingOverlay(entity, project);
     return true;
 }
@@ -265,6 +265,8 @@ function wallSegmentDepth(segment, project) {
     const second = segment.orientation === "vertical"
         ? project({ x: segment.x, y: segment.y + length })
         : project({ x: segment.x + length, y: segment.y });
+    if (segment.rearJoinAt === "start") return first.y;
+    if (segment.rearJoinAt === "end") return second.y;
     return Math.max(first.y, second.y);
 }
 
@@ -293,7 +295,7 @@ function raisedRenderItems(visibleItems, project) {
     const raised = [];
     for (const item of visibleItems) {
         if (item.entity.subtype === "building" && rectangularFootprint(item.entity)) {
-            for (const segment of buildingWallSegments(item.entity)) {
+            for (const segment of buildingWallSegments(item.entity, project)) {
                 raised.push({ kind: "wall", segment, depth: wallSegmentDepth(segment, project) });
             }
         } else if (isRaisedDepthEntity(item.entity)) {
@@ -320,7 +322,7 @@ function drawRaisedEntityLabel(entity, project) {
 }
 
 // Keep the simulation/view contract untouched: this layer consumes the existing
-// metre-based view geometry and turns it into reusable one-metre visual tiles.
+// metre-based view geometry and turns it into one-metre doors/side sections and preferred two-metre rear bays.
 // Terrain/floor fallback canvases remain compatible with the original tile atlas.
 // Wall and door artwork comes exclusively from the fixed building atlas.
 drawGrid = function(project) {

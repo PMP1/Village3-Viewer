@@ -1,5 +1,6 @@
 // Fixed source rectangles and pixel anchors; 32 art pixels remain one world metre.
-// Doors still use the legacy SVG atlas. Wall geometry now uses editable PNG templates.
+// LPC's 64x64 character frame is visual space only. Doors remain one 32px metre.
+// Doors still use the legacy SVG atlas. Wall geometry uses editable PNG templates.
 const BUILDING_ATLAS_PATH = "./assets/village-building-walls.svg";
 const BUILDING_WALL_PNG_DIRECTORY = "./assets/building-walls-png/";
 const BUILDING_SPRITES = Object.freeze({
@@ -11,12 +12,6 @@ const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.open.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":480,"sourceY":0},
     "building.exterior.doorway.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":320,"sourceY":0},
     "building.exterior.doorway.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":448,"sourceY":0},
-    "building.exterior.wall.corner.ne": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":96,"sourceY":0},
-    "building.exterior.wall.corner.ne.cutaway": {"anchorX":0,"anchorY":12,"drawHeight":16,"drawWidth":32,"sourceHeight":16,"sourceWidth":32,"sourceX":192,"sourceY":128},
-    "building.exterior.wall.corner.nw": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":64,"sourceY":0},
-    "building.exterior.wall.corner.nw.cutaway": {"anchorX":0,"anchorY":12,"drawHeight":16,"drawWidth":32,"sourceHeight":16,"sourceWidth":32,"sourceX":160,"sourceY":128},
-    "building.exterior.wall.corner.se": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":160,"sourceY":0},
-    "building.exterior.wall.corner.sw": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":128,"sourceY":0},
     "building.exterior.wall.end.east": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":256,"sourceY":0},
     "building.exterior.wall.end.east.cutaway": {"anchorX":0,"anchorY":12,"drawHeight":16,"drawWidth":32,"sourceHeight":16,"sourceWidth":32,"sourceX":224,"sourceY":128},
     "building.exterior.wall.end.north": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":192,"sourceY":0},
@@ -34,10 +29,6 @@ const BUILDING_SPRITES = Object.freeze({
     "building.interior.door.open.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":32,"sourceY":128},
     "building.interior.doorway.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":64},
     "building.interior.doorway.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":128},
-    "building.interior.wall.corner.ne": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":160,"sourceY":64},
-    "building.interior.wall.corner.nw": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":128,"sourceY":64},
-    "building.interior.wall.corner.se": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":224,"sourceY":64},
-    "building.interior.wall.corner.sw": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":192,"sourceY":64},
     "building.interior.wall.end.east": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":320,"sourceY":64},
     "building.interior.wall.end.north": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":256,"sourceY":64},
     "building.interior.wall.end.south": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":288,"sourceY":64},
@@ -47,32 +38,22 @@ const BUILDING_SPRITES = Object.freeze({
 });
 
 const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-// Side walls share the full 96 px height of their L corners: 64 px of visible
-// wall face plus the final 32 px projected metre. They stay narrow inside the
-// 32 px canvas; west/east only mirror which physical boundary they hug.
+const PNG_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
+// Side walls remain one-metre logical sections. Their 96 px canvas carries the
+// 64 px rise plus the 32 px descending run, independently of the rear bay.
 const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
-// In the north-up viewer, north/back corners extend their one-metre side arm down
-// from the horizontal base; south/front corners extend their arm upward.
-const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_CORNER_SOUTH = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_CUTAWAY_NORTH = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":56,"drawWidth":32,"sourceHeight":56,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_CUTAWAY_SOUTH = Object.freeze({"anchorX":0,"anchorY":56,"drawHeight":56,"drawWidth":32,"sourceHeight":56,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
 const BUILDING_PNG_SPRITES = Object.freeze({
+    "building.exterior.back.wall2.plain": PNG_BACK_WALL_2,
+    "building.exterior.back.wall1.left": PNG_BACK_WALL_1,
+    "building.exterior.back.wall1.right": PNG_BACK_WALL_1,
     "building.exterior.wall.horizontal": PNG_HORIZONTAL,
     "building.exterior.wall.horizontal.cutaway": PNG_CUTAWAY,
     "building.exterior.wall.vertical.west": PNG_VERTICAL_WEST,
     "building.exterior.wall.vertical.east": PNG_VERTICAL_EAST,
-    "building.exterior.wall.corner.nw": PNG_CORNER_NORTH,
-    "building.exterior.wall.corner.ne": PNG_CORNER_NORTH,
-    "building.exterior.wall.corner.sw": PNG_CORNER_SOUTH,
-    "building.exterior.wall.corner.se": PNG_CORNER_SOUTH,
-    "building.exterior.wall.corner.nw.cutaway": PNG_CUTAWAY_NORTH,
-    "building.exterior.wall.corner.ne.cutaway": PNG_CUTAWAY_NORTH,
-    "building.exterior.wall.corner.sw.cutaway": PNG_CUTAWAY_SOUTH,
-    "building.exterior.wall.corner.se.cutaway": PNG_CUTAWAY_SOUTH,
     "building.exterior.wall.end.east": PNG_HORIZONTAL,
     "building.exterior.wall.end.west": PNG_HORIZONTAL,
     "building.exterior.wall.end.east.cutaway": PNG_CUTAWAY,
@@ -80,27 +61,18 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.interior.wall.horizontal": PNG_HORIZONTAL,
     "building.interior.wall.vertical.west": PNG_VERTICAL_WEST,
     "building.interior.wall.vertical.east": PNG_VERTICAL_EAST,
-    "building.interior.wall.corner.nw": PNG_CORNER_NORTH,
-    "building.interior.wall.corner.ne": PNG_CORNER_NORTH,
-    "building.interior.wall.corner.sw": PNG_CORNER_SOUTH,
-    "building.interior.wall.corner.se": PNG_CORNER_SOUTH,
     "building.interior.wall.end.east": PNG_HORIZONTAL,
     "building.interior.wall.end.west": PNG_HORIZONTAL
 });
 
 const BUILDING_PNG_PATHS = Object.freeze({
+    "building.exterior.back.wall2.plain": BUILDING_WALL_PNG_DIRECTORY + "wall_back_2m.png",
+    "building.exterior.back.wall1.left": BUILDING_WALL_PNG_DIRECTORY + "wall_back_1m_left.png",
+    "building.exterior.back.wall1.right": BUILDING_WALL_PNG_DIRECTORY + "wall_back_1m_right.png",
     "building.exterior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.horizontal.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
     "building.exterior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
     "building.exterior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
-    "building.exterior.wall.corner.nw": BUILDING_WALL_PNG_DIRECTORY + "corner_nw.png",
-    "building.exterior.wall.corner.ne": BUILDING_WALL_PNG_DIRECTORY + "corner_ne.png",
-    "building.exterior.wall.corner.sw": BUILDING_WALL_PNG_DIRECTORY + "corner_sw.png",
-    "building.exterior.wall.corner.se": BUILDING_WALL_PNG_DIRECTORY + "corner_se.png",
-    "building.exterior.wall.corner.nw.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_nw_cutaway.png",
-    "building.exterior.wall.corner.ne.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_ne_cutaway.png",
-    "building.exterior.wall.corner.sw.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_sw_cutaway.png",
-    "building.exterior.wall.corner.se.cutaway": BUILDING_WALL_PNG_DIRECTORY + "corner_se_cutaway.png",
     "building.exterior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.end.east.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
@@ -108,10 +80,6 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.interior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.interior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
     "building.interior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
-    "building.interior.wall.corner.nw": BUILDING_WALL_PNG_DIRECTORY + "corner_nw.png",
-    "building.interior.wall.corner.ne": BUILDING_WALL_PNG_DIRECTORY + "corner_ne.png",
-    "building.interior.wall.corner.sw": BUILDING_WALL_PNG_DIRECTORY + "corner_sw.png",
-    "building.interior.wall.corner.se": BUILDING_WALL_PNG_DIRECTORY + "corner_se.png",
     "building.interior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.interior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png"
 });

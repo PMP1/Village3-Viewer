@@ -3,7 +3,7 @@
 (function () {
     function horizontal(side) { return side === "north" || side === "south"; }
 
-    function extractRun(layer, side, origin, length, doors = [], corners = {}) {
+    function rawRun(layer, side, origin, length, doors = []) {
         const orientation = horizontal(side) ? "horizontal" : "vertical";
         const segments = [];
         for (let offset = 0; offset < length; offset++) {
@@ -13,11 +13,10 @@
                 x: origin.x + (horizontal(side) ? offset : 0),
                 y: origin.y + (horizontal(side) ? 0 : offset),
                 length: Math.min(1, length - offset),
-                ...(door ? { doorState: door.state, doorId: door.id } : {}),
-                ...(corners[offset] ? { corner: corners[offset] } : {})
+                ...(door ? { doorState: door.state, doorId: door.id } : {})
             });
         }
-        return classifyRun(segments);
+        return segments;
     }
 
     function classifyRun(segments) {
@@ -27,7 +26,6 @@
                 const role = ["open", "closed", "locked"].includes(state) ? "door-" + state : "doorway";
                 return { ...segment, role };
             }
-            if (segment.corner) return { ...segment, role: "corner", variant: segment.corner };
             const continuing = neighbour => neighbour && neighbour.doorId === undefined && neighbour.doorState === undefined;
             const before = continuing(segments[index - 1]);
             const after = continuing(segments[index + 1]);
@@ -39,30 +37,6 @@
                     : (before ? "south" : "north")
             };
         });
-    }
-
-    function extractExterior(footprint) {
-        const { origin, width, height } = footprint;
-        const doors = side => (footprint.doors ?? []).filter(door => door.side === side);
-        return [
-            ...extractRun("exterior", "north", origin, width, doors("north"),
-                { 0: "nw", [Math.ceil(width) - 1]: "ne" }),
-            ...extractRun("exterior", "south", { x: origin.x, y: origin.y + height }, width, doors("south"),
-                { 0: "sw", [Math.ceil(width) - 1]: "se" }),
-            ...extractRun("exterior", "west", origin, height, doors("west")),
-            ...extractRun("exterior", "east", { x: origin.x + width, y: origin.y }, height, doors("east"))
-        ];
-    }
-
-    function extractInterior(footprint) {
-        return (footprint.partitions ?? []).flatMap(partition => extractRun(
-            "interior", partition.side,
-            {
-                x: partition.origin.x + (partition.side === "east" ? 1 : 0),
-                y: partition.origin.y + (partition.side === "south" ? 1 : 0)
-            },
-            partition.length, partition.doors
-        ));
     }
 
     function activeProjection(projectOverride) {
@@ -82,11 +56,79 @@
         return worldYMovesDownScreen(projectOverride) ? "south" : "north";
     }
 
-    function projectedCornerVariant(variant, projectOverride) {
-        if (!variant || worldYMovesDownScreen(projectOverride)) return variant;
-        if (variant[0] === "n") return "s" + variant.slice(1);
-        if (variant[0] === "s") return "n" + variant.slice(1);
-        return variant;
+    function screenRearHorizontalSide(projectOverride) {
+        return screenNearHorizontalSide(projectOverride) === "south" ? "north" : "south";
+    }
+
+    // Convert only a screen-rear exterior run into architectural modules. Input
+    // geometry remains one metre per segment and doors remain exactly one metre.
+    function groupRearRun(segments) {
+        const grouped = [];
+        let index = 0;
+        while (index < segments.length) {
+            const segment = segments[index];
+            if (segment.doorId !== undefined || segment.doorState !== undefined) {
+                grouped.push(classifyRun([segment])[0]);
+                index += 1;
+                continue;
+            }
+
+            const start = index;
+            while (index < segments.length &&
+                segments[index].doorId === undefined && segments[index].doorState === undefined) index += 1;
+            const solidLength = index - start;
+            const bayCount = Math.floor(solidLength / 2);
+            for (let bay = 0; bay < bayCount; bay++) {
+                const first = segments[start + bay * 2];
+                grouped.push({ ...first, length: 2, role: "wall-bay-2" });
+            }
+            if (solidLength % 2 === 1) {
+                const filler = segments[index - 1];
+                grouped.push({
+                    ...filler,
+                    role: "wall-filler-1",
+                    // Pair from left to right. A lone span immediately after a
+                    // doorway needs its post on the left; every other remainder
+                    // closes the run with a post on the right.
+                    variant: solidLength === 1 && start > 0 ? "left" : "right"
+                });
+            }
+        }
+        return grouped;
+    }
+
+    function extractExterior(footprint, projectOverride) {
+        const { origin, width, height } = footprint;
+        const doors = side => (footprint.doors ?? []).filter(door => door.side === side);
+        const rear = screenRearHorizontalSide(projectOverride);
+        const horizontalRun = (side, runOrigin) => {
+            const raw = rawRun("exterior", side, runOrigin, width, doors(side));
+            return side === rear ? groupRearRun(raw) : classifyRun(raw);
+        };
+        const sideRun = (side, runOrigin) => {
+            const run = classifyRun(rawRun("exterior", side, runOrigin, height, doors(side)));
+            const joinIndex = rear === "north" ? 0 : run.length - 1;
+            return run.map((segment, index) => index === joinIndex
+                ? { ...segment, rearJoinAt: rear === "north" ? "start" : "end" }
+                : segment);
+        };
+        return [
+            ...horizontalRun("north", origin),
+            ...horizontalRun("south", { x: origin.x, y: origin.y + height }),
+            ...sideRun("west", origin),
+            ...sideRun("east", { x: origin.x + width, y: origin.y })
+        ];
+    }
+
+    function extractInterior(footprint) {
+        return (footprint.partitions ?? []).flatMap(partition => classifyRun(rawRun(
+            "interior", partition.side,
+            {
+                x: partition.origin.x + (partition.side === "east" ? 1 : 0),
+                y: partition.origin.y + (partition.side === "south" ? 1 : 0)
+            },
+            partition.length, partition.doors
+        )));
     }
 
     function projectedSideWallSuffix(segment) {
@@ -100,15 +142,14 @@
         const prefix = "building." + segment.layer + ".";
         let suffix;
         const sideWall = projectedSideWallSuffix(segment);
-        if (segment.role === "corner") suffix = "wall.corner." + projectedCornerVariant(segment.variant, projectOverride);
+        if (segment.role === "wall-bay-2") suffix = "back.wall2.plain";
+        else if (segment.role === "wall-filler-1") suffix = "back.wall1." + segment.variant;
         else if (sideWall) suffix = sideWall;
         else if (segment.role === "end") suffix = "wall.end." + segment.variant;
         else if (segment.role === "doorway") suffix = "doorway." + segment.orientation;
         else if (segment.role.startsWith("door-")) suffix = "door." + segment.role.slice(5) + "." + segment.orientation;
         else suffix = "wall." + segment.orientation;
         // The cutaway is a visual screen-front rule, not a simulation-cardinal rule.
-        // Derive it from the active projector so a Y-up or Y-down camera cannot put
-        // the low wall at the back of the building.
         const low = segment.layer === "exterior" &&
             segment.side === screenNearHorizontalSide(projectOverride) &&
             !segment.role.startsWith("door");
@@ -117,10 +158,13 @@
 
     function painterOrder(segments, projectOverride) {
         const project = activeProjection(projectOverride);
-        // Paint smaller screen Y first (back/top), then larger screen Y (front/bottom).
-        // Fall back to the current north-up world ordering in non-viewer test harnesses.
+        const paintBase = segment => segment.rearJoinAt === "end"
+            ? { x: segment.x, y: segment.y + (segment.length ?? 1) }
+            : segment;
+        // Side walls sort before a rear bay at the same base depth, so they tuck
+        // behind the bay's end post instead of covering it.
         return [...segments].sort((a, b) => {
-            const yOrder = project ? project(a).y - project(b).y : a.y - b.y;
+            const yOrder = project ? project(paintBase(a)).y - project(paintBase(b)).y : a.y - b.y;
             return yOrder ||
                 Number(a.orientation === "horizontal") - Number(b.orientation === "horizontal") ||
                 a.x - b.x;
@@ -128,6 +172,6 @@
     }
 
     window.VillageBuildingWalls = Object.freeze({
-        extractExterior, extractInterior, classifyRun, spriteId, painterOrder
+        extractExterior, extractInterior, classifyRun, groupRearRun, spriteId, painterOrder
     });
 })();
