@@ -90,7 +90,7 @@ function drawFixtureTile(entity, project, tileId) {
         context.strokeRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
     }
 
-    if (shouldDrawLabel(entity, project)) {
+    if (!deferRaisedEntityLabels && shouldDrawLabel(entity, project)) {
         const point = project(entity.position);
         context.font = "11px system-ui";
         context.fillStyle = entity.id === selectedEntityId ? "#f2cc60" : "#f0e6d2";

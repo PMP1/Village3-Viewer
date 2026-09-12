@@ -219,7 +219,7 @@
             context.stroke();
         }
 
-        if (shouldDrawLabel(entity, project)) {
+        if (!deferRaisedEntityLabels && shouldDrawLabel(entity, project)) {
             context.font = "600 12px system-ui";
             context.fillStyle = selected ? "#f2cc60" : "#f0f6fc";
             context.textAlign = "center";

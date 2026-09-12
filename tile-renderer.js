@@ -17,6 +17,7 @@ const TILE_IDS = Object.freeze({
 });
 
 const tileCanvases = new Map();
+let deferRaisedEntityLabels = false;
 
 function createTileCanvas(draw) {
     const tile = document.createElement("canvas");
@@ -171,18 +172,25 @@ function drawBuildingFloor(footprint, project) {
     }
 }
 
-function drawBuildingTiles(entity, project) {
+function buildingWallSegments(entity) {
     const footprint = rectangularFootprint(entity);
-    if (!footprint) return false;
-
-    drawBuildingFloor(footprint, project);
-    // All floors precede raised artwork. Sort both wall layers together so
-    // nearer edges finish joins instead of being covered by farther partitions.
-    if (typeof drawBuildingSegments === "function") drawBuildingSegments([
+    if (!footprint || !window.VillageBuildingWalls) return [];
+    return [
         ...window.VillageBuildingWalls.extractExterior(footprint),
         ...window.VillageBuildingWalls.extractInterior(footprint)
-    ], project);
+    ];
+}
 
+function drawBuildingGround(entity, project) {
+    const footprint = rectangularFootprint(entity);
+    if (!footprint) return false;
+    drawBuildingFloor(footprint, project);
+    return true;
+}
+
+function drawBuildingOverlay(entity, project) {
+    const footprint = rectangularFootprint(entity);
+    if (!footprint) return false;
     const selected = entity.id === selectedEntityId;
     if (selected) {
         const bounds = entityScreenBounds(entity, project);
@@ -206,6 +214,13 @@ function drawBuildingTiles(entity, project) {
     context.shadowBlur = 3;
     context.fillText(entity.label ?? entity.id, labelPoint.x, labelPoint.y - 5);
     context.restore();
+    return true;
+}
+
+function drawBuildingTiles(entity, project) {
+    if (!drawBuildingGround(entity, project)) return false;
+    if (typeof drawBuildingSegments === "function") drawBuildingSegments(buildingWallSegments(entity), project);
+    drawBuildingOverlay(entity, project);
     return true;
 }
 
@@ -234,6 +249,76 @@ function drawRoomTileOverlay(entity, project) {
     return true;
 }
 
+function isRaisedDepthEntity(entity) {
+    if (entity.category === "character") return true;
+    return typeof fixtureTileId === "function" && Boolean(fixtureTileId(entity));
+}
+
+function raisedEntityDepth(item) {
+    if (item.entity.category === "character") return item.point.y;
+    return item.bounds?.bottom ?? item.point.y;
+}
+
+function wallSegmentDepth(segment, project) {
+    const length = segment.length ?? 1;
+    const first = project({ x: segment.x, y: segment.y });
+    const second = segment.orientation === "vertical"
+        ? project({ x: segment.x, y: segment.y + length })
+        : project({ x: segment.x + length, y: segment.y });
+    return Math.max(first.y, second.y);
+}
+
+function raisedItemPriority(item) {
+    if (item.kind !== "wall") return 10;
+    // On an exact ground-depth tie, walls/doors should cover physical objects.
+    // Keep the existing wall tie behaviour too: vertical runs before horizontal joins.
+    return item.segment.orientation === "horizontal" ? 30 : 20;
+}
+
+function raisedItemStableKey(item) {
+    if (item.kind === "wall") {
+        const segment = item.segment;
+        return ["wall", segment.layer, segment.side, segment.x, segment.y, segment.role, segment.variant, segment.doorId].join(":");
+    }
+    return "entity:" + item.entity.id;
+}
+
+function compareRaisedRenderItems(a, b) {
+    return a.depth - b.depth ||
+        raisedItemPriority(a) - raisedItemPriority(b) ||
+        raisedItemStableKey(a).localeCompare(raisedItemStableKey(b));
+}
+
+function raisedRenderItems(visibleItems, project) {
+    const raised = [];
+    for (const item of visibleItems) {
+        if (item.entity.subtype === "building" && rectangularFootprint(item.entity)) {
+            for (const segment of buildingWallSegments(item.entity)) {
+                raised.push({ kind: "wall", segment, depth: wallSegmentDepth(segment, project) });
+            }
+        } else if (isRaisedDepthEntity(item.entity)) {
+            raised.push({ kind: "entity", entity: item.entity, point: item.point, bounds: item.bounds, depth: raisedEntityDepth(item) });
+        }
+    }
+    return raised.sort(compareRaisedRenderItems);
+}
+
+function drawRaisedEntityLabel(entity, project) {
+    if (!shouldDrawLabel(entity, project)) return;
+    const point = project(entity.position);
+    const bounds = entityScreenBounds(entity, project);
+    const selected = entity.id === selectedEntityId;
+    context.save();
+    context.font = entity.category === "character" ? "600 12px system-ui" : "11px system-ui";
+    context.fillStyle = selected ? "#f2cc60" : entity.category === "character" ? "#f0f6fc" : "#f0e6d2";
+    context.textAlign = "center";
+    context.textBaseline = "bottom";
+    context.shadowColor = entity.category === "character" ? "rgba(0, 0, 0, 0.9)" : "rgba(0, 0, 0, 0.85)";
+    context.shadowBlur = 3;
+    context.fillText(entity.label ?? entity.id, point.x, (bounds?.top ?? point.y) - (entity.category === "character" ? 3 : 4));
+    context.restore();
+}
+
 // Keep the simulation/view contract untouched: this layer consumes the existing
 // metre-based view geometry and turns it into reusable one-metre visual tiles.
 // Terrain/floor fallback canvases remain compatible with the original tile atlas.
@@ -252,7 +337,74 @@ drawEntity = function(entity, point, project) {
     drawEntityBeforeTileRenderer(entity, point, project);
 };
 
+// The original viewer grouped all objects before all characters. Once sprites have
+// height that makes otherwise-correct assets overlap incorrectly. Compose floors
+// first, then sort raised walls/fixtures/characters by their screen-space ground
+// contact, and finally draw labels/selection overlays above the physical artwork.
+const renderMapBeforeTileRenderer = typeof renderMap === "function" ? renderMap : undefined;
+if (renderMapBeforeTileRenderer) {
+    renderMap = function() {
+        if (!recording || !context || !cameraInitialised) return;
+        if (typeof drawBuildingSegments !== "function" || !window.VillageBuildingWalls) {
+            renderMapBeforeTileRenderer();
+            return;
+        }
+
+        const frame = recording.frames[frameIndex];
+        updateFollowCamera(frame);
+        const project = projection();
+
+        context.clearRect(0, 0, canvasWidth, canvasHeight);
+        context.fillStyle = "#090d12";
+        context.fillRect(0, 0, canvasWidth, canvasHeight);
+        drawGrid(project);
+        drawSelectedTrail(project);
+
+        projectedEntities = frame.entities.map(entity => ({
+            entity,
+            point: project(entity.position),
+            bounds: entityScreenBounds(entity, project)
+        }));
+        const visibleItems = projectedEntities.filter(onScreen);
+        const buildingItems = visibleItems.filter(item => item.entity.subtype === "building" && rectangularFootprint(item.entity));
+
+        // Floors are ground artwork and must not participate in occlusion sorting.
+        for (const item of buildingItems) drawBuildingGround(item.entity, project);
+        for (const item of visibleItems) drawMovementTarget(item.entity, item.point, project);
+
+        // Area/debug overlays and other non-raised entities stay beneath physical sprites.
+        for (const item of visibleItems) {
+            if (buildingItems.includes(item) || isRaisedDepthEntity(item.entity)) continue;
+            drawEntity(item.entity, item.point, project);
+        }
+
+        const raisedItems = raisedRenderItems(visibleItems, project);
+        const raisedEntities = [];
+        deferRaisedEntityLabels = true;
+        try {
+            for (const item of raisedItems) {
+                if (item.kind === "wall") {
+                    drawBuildingSegments([item.segment], project);
+                } else {
+                    drawEntity(item.entity, item.point, project);
+                    raisedEntities.push(item.entity);
+                }
+            }
+        } finally {
+            deferRaisedEntityLabels = false;
+        }
+
+        // UI overlays do not take part in physical depth ordering.
+        for (const item of buildingItems) drawBuildingOverlay(item.entity, project);
+        for (const entity of raisedEntities) drawRaisedEntityLabel(entity, project);
+    };
+}
+
 window.VillageTileRenderer = Object.freeze({
     sourceTilePixels: SOURCE_TILE_PIXELS,
-    tileIds: TILE_IDS
+    tileIds: TILE_IDS,
+    isRaisedDepthEntity,
+    raisedEntityDepth,
+    wallSegmentDepth,
+    compareRaisedRenderItems
 });
