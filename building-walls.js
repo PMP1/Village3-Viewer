@@ -65,28 +65,57 @@
         ));
     }
 
-    function spriteId(segment) {
+    function activeProjection(projectOverride) {
+        if (projectOverride) return projectOverride;
+        return typeof projection === "function" ? projection() : undefined;
+    }
+
+    function worldYMovesDownScreen(projectOverride) {
+        const project = activeProjection(projectOverride);
+        if (!project) return true;
+        const origin = project({ x: 0, y: 0 });
+        const positiveY = project({ x: 0, y: 1 });
+        return positiveY.y >= origin.y;
+    }
+
+    function screenNearHorizontalSide(projectOverride) {
+        return worldYMovesDownScreen(projectOverride) ? "south" : "north";
+    }
+
+    function projectedCornerVariant(variant, projectOverride) {
+        if (!variant || worldYMovesDownScreen(projectOverride)) return variant;
+        if (variant[0] === "n") return "s" + variant.slice(1);
+        if (variant[0] === "s") return "n" + variant.slice(1);
+        return variant;
+    }
+
+    function spriteId(segment, projectOverride) {
         const prefix = "building." + segment.layer + ".";
         let suffix;
-        if (segment.role === "corner") suffix = "wall.corner." + segment.variant;
+        if (segment.role === "corner") suffix = "wall.corner." + projectedCornerVariant(segment.variant, projectOverride);
         else if (segment.role === "end") suffix = "wall.end." + segment.variant;
         else if (segment.role === "doorway") suffix = "doorway." + segment.orientation;
         else if (segment.role.startsWith("door-")) suffix = "door." + segment.role.slice(5) + "." + segment.orientation;
         else suffix = "wall." + segment.orientation;
-        // map-features.js keeps navigation north at the top of the screen by
-        // projecting increasing world Y downward. South is therefore screen-near.
-        // Keep door frames/leaves full height; only the near exterior wall is low.
-        const low = segment.layer === "exterior" && segment.side === "south" && !segment.role.startsWith("door");
+        // The cutaway is a visual screen-front rule, not a simulation-cardinal rule.
+        // Derive it from the active projector so a Y-up or Y-down camera cannot put
+        // the low wall at the back of the building.
+        const low = segment.layer === "exterior" &&
+            segment.side === screenNearHorizontalSide(projectOverride) &&
+            !segment.role.startsWith("door");
         return prefix + suffix + (low ? ".cutaway" : "");
     }
 
-    function painterOrder(segments) {
-        // Low world Y is screen-back in the north-up projection. Paint it first,
-        // then move toward larger Y so nearer walls finish over farther walls.
-        // Horizontal caps finish equal-base joins.
-        return [...segments].sort((a, b) => a.y - b.y ||
-            Number(a.orientation === "horizontal") - Number(b.orientation === "horizontal") ||
-            a.x - b.x);
+    function painterOrder(segments, projectOverride) {
+        const project = activeProjection(projectOverride);
+        // Paint smaller screen Y first (back/top), then larger screen Y (front/bottom).
+        // Fall back to the current north-up world ordering in non-viewer test harnesses.
+        return [...segments].sort((a, b) => {
+            const yOrder = project ? project(a).y - project(b).y : a.y - b.y;
+            return yOrder ||
+                Number(a.orientation === "horizontal") - Number(b.orientation === "horizontal") ||
+                a.x - b.x;
+        });
     }
 
     window.VillageBuildingWalls = Object.freeze({
