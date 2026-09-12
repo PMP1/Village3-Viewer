@@ -67,6 +67,34 @@ handlePointerMove = function(event) {
 };
 canvas.addEventListener("pointermove", handlePointerMove);
 
+function isGroundOnlyMapFeature(entity) {
+    return entity.category === "map-feature" && (entity.subtype === "road" || entity.subtype === "market-square");
+}
+
+const baseMapFeatureSelectAtScreenPoint = selectAtScreenPoint;
+selectAtScreenPoint = function selectAtScreenPointWithoutGroundFeatures(x, y) {
+    const allProjectedEntities = projectedEntities;
+    projectedEntities = allProjectedEntities.filter(item => !isGroundOnlyMapFeature(item.entity));
+    try {
+        baseMapFeatureSelectAtScreenPoint(x, y);
+    } finally {
+        projectedEntities = allProjectedEntities;
+    }
+};
+
+function isUnlabelledFurniture(entity) {
+    const fixtureType = entity.properties?.fixtureType;
+    return fixtureType === "dining-table"
+        || fixtureType === "service-counter"
+        || entity.properties?.resourceType === "dining-seat";
+}
+
+const baseMapFeatureShouldDrawLabel = shouldDrawLabel;
+shouldDrawLabel = function shouldDrawLabelWithoutFurnitureNoise(entity, project) {
+    if (isUnlabelledFurniture(entity)) return false;
+    return baseMapFeatureShouldDrawLabel(entity, project);
+};
+
 const baseIncludeEntityBounds = includeEntityBounds;
 includeEntityBounds = function(include, entity) {
     const geometry = entity.geometry;
@@ -106,7 +134,7 @@ entityScreenBounds = function(entity, project) {
 
 function drawMapFeature(entity, project) {
     const geometry = entity.geometry;
-    const selected = entity.id === selectedEntityId;
+    const selected = !isGroundOnlyMapFeature(entity) && entity.id === selectedEntityId;
     context.save();
 
     if (geometry?.type === "polygon" && geometry.points.length > 0) {
@@ -157,7 +185,9 @@ function drawMapFeature(entity, project) {
         context.setLineDash([]);
     }
 
-    if (selected || (entity.subtype === "market-square" && project.scale >= 5) || (entity.subtype === "forest" && project.scale >= 5)) {
+    const showLabel = !isGroundOnlyMapFeature(entity)
+        && (selected || (entity.subtype === "forest" && project.scale >= 5));
+    if (showLabel) {
         const point = project(entity.position);
         context.font = "600 11px system-ui";
         context.fillStyle = selected ? "#f2cc60" : "#8b949e";
