@@ -9,7 +9,7 @@ The fixed scale is **32 art pixels = 1 world metre**.
 | Asset | Canvas | Geometry |
 | --- | ---: | --- |
 | `wall_horizontal.png` | 32×64 | 1 m horizontal wall, 64 px maximum visible wall height |
-| `wall_vertical.png` | 32×32 | 1 m north/south projected wall strip; wall height is not baked into each side segment |
+| `wall_vertical_west.png` / `wall_vertical_east.png` | 32×64 | 1 m north/south side-wall projection: 32 px top/run region plus 32 px visible inside face; west/east are mirrored and anchored to their physical boundary |
 | `corner_nw.png` / `corner_ne.png` | 32×96 | Back/north L corner: 64 px wall face with its 1 m side arm extending downward into the building side run |
 | `corner_sw.png` / `corner_se.png` | 32×96 | Front/south L corner: 64 px wall face with its 1 m side arm extending upward into the building side run |
 | `wall_horizontal_cutaway.png` | 32×24 | Low/cutaway horizontal wall |
@@ -20,14 +20,15 @@ obvious while editing. The simple colours and placeholder thickness are not an
 art-direction decision; only the transparent canvas size and arm direction are
 part of this contract.
 
-The viewer is north-up: simulation north (decreasing world Y) is at the top of
-the screen, while south is at the bottom/front. The fixed cutaway is therefore
-applied to the exterior south/front wall. The north/back wall remains full height.
+The viewer derives which horizontal edge is front from the active projection, so
+the cutaway stays on the screen-bottom wall even if the camera projection changes.
+The opposite horizontal wall remains full height.
 
-Exterior L corners own the first and last metre of their adjoining north/south
-side wall. Those side-end segments therefore render transparently rather than
-drawing a second copy over the corner arm. Interior partition ends continue to
-use the normal 32×32 side-wall strip because they do not have exterior L corners.
+West and east side walls use separate artwork. Their top strips sit on the outside
+boundary while the added visible face projects inward into the room. Side-wall end
+segments use the same west/east sprites; the L-corner is painted after them at the
+join, so its arm caps the overlap cleanly instead of leaving the first/last metre
+without a visible face.
 
 Wall straight sections, ends and corners resolve to these PNGs. Door and doorway
 art remains in `../village-building-walls.svg` for now, so the PNG wall artwork can

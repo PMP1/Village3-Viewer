@@ -47,11 +47,10 @@ const BUILDING_SPRITES = Object.freeze({
 });
 
 const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_VERTICAL = Object.freeze({"anchorX":16,"anchorY":32,"drawHeight":32,"drawWidth":32,"sourceHeight":32,"sourceWidth":32,"sourceX":0,"sourceY":0});
-// Exterior L corners already contain the first/last metre of each north/south run.
-// Keep the semantic end segment but draw a transparent source pixel so call ordering
-// and door overrides stay unchanged while the corner owns that visible geometry.
-const PNG_CORNER_OWNED_SIDE_END = Object.freeze({"anchorX":0,"anchorY":0,"drawHeight":1,"drawWidth":1,"sourceHeight":1,"sourceWidth":1,"sourceX":0,"sourceY":0});
+// Side walls need both their 1 m projected top strip and the visible inside face.
+// West art sits wholly inside/east of the west boundary; east art mirrors it inside/west.
+const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":32,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":32,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
 // In the north-up viewer, north/back corners extend their one-metre side arm down
 // from the horizontal base; south/front corners extend their arm upward.
 const PNG_CORNER_NORTH = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
@@ -63,7 +62,8 @@ const PNG_CUTAWAY_SOUTH = Object.freeze({"anchorX":0,"anchorY":56,"drawHeight":5
 const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.wall.horizontal": PNG_HORIZONTAL,
     "building.exterior.wall.horizontal.cutaway": PNG_CUTAWAY,
-    "building.exterior.wall.vertical": PNG_VERTICAL,
+    "building.exterior.wall.vertical.west": PNG_VERTICAL_WEST,
+    "building.exterior.wall.vertical.east": PNG_VERTICAL_EAST,
     "building.exterior.wall.corner.nw": PNG_CORNER_NORTH,
     "building.exterior.wall.corner.ne": PNG_CORNER_NORTH,
     "building.exterior.wall.corner.sw": PNG_CORNER_SOUTH,
@@ -76,24 +76,22 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.wall.end.west": PNG_HORIZONTAL,
     "building.exterior.wall.end.east.cutaway": PNG_CUTAWAY,
     "building.exterior.wall.end.west.cutaway": PNG_CUTAWAY,
-    "building.exterior.wall.end.north": PNG_CORNER_OWNED_SIDE_END,
-    "building.exterior.wall.end.south": PNG_CORNER_OWNED_SIDE_END,
     "building.interior.wall.horizontal": PNG_HORIZONTAL,
-    "building.interior.wall.vertical": PNG_VERTICAL,
+    "building.interior.wall.vertical.west": PNG_VERTICAL_WEST,
+    "building.interior.wall.vertical.east": PNG_VERTICAL_EAST,
     "building.interior.wall.corner.nw": PNG_CORNER_NORTH,
     "building.interior.wall.corner.ne": PNG_CORNER_NORTH,
     "building.interior.wall.corner.sw": PNG_CORNER_SOUTH,
     "building.interior.wall.corner.se": PNG_CORNER_SOUTH,
     "building.interior.wall.end.east": PNG_HORIZONTAL,
-    "building.interior.wall.end.west": PNG_HORIZONTAL,
-    "building.interior.wall.end.north": PNG_VERTICAL,
-    "building.interior.wall.end.south": PNG_VERTICAL
+    "building.interior.wall.end.west": PNG_HORIZONTAL
 });
 
 const BUILDING_PNG_PATHS = Object.freeze({
     "building.exterior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.horizontal.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
-    "building.exterior.wall.vertical": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.exterior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
+    "building.exterior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
     "building.exterior.wall.corner.nw": BUILDING_WALL_PNG_DIRECTORY + "corner_nw.png",
     "building.exterior.wall.corner.ne": BUILDING_WALL_PNG_DIRECTORY + "corner_ne.png",
     "building.exterior.wall.corner.sw": BUILDING_WALL_PNG_DIRECTORY + "corner_sw.png",
@@ -106,18 +104,15 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.exterior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.end.east.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
     "building.exterior.wall.end.west.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
-    "building.exterior.wall.end.north": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
-    "building.exterior.wall.end.south": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
     "building.interior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
-    "building.interior.wall.vertical": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
+    "building.interior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
+    "building.interior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
     "building.interior.wall.corner.nw": BUILDING_WALL_PNG_DIRECTORY + "corner_nw.png",
     "building.interior.wall.corner.ne": BUILDING_WALL_PNG_DIRECTORY + "corner_ne.png",
     "building.interior.wall.corner.sw": BUILDING_WALL_PNG_DIRECTORY + "corner_sw.png",
     "building.interior.wall.corner.se": BUILDING_WALL_PNG_DIRECTORY + "corner_se.png",
     "building.interior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
-    "building.interior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
-    "building.interior.wall.end.north": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png",
-    "building.interior.wall.end.south": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical.png"
+    "building.interior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png"
 });
 
 const BUILDING_RESOLVED_SPRITES = Object.freeze({ ...BUILDING_SPRITES, ...BUILDING_PNG_SPRITES });
@@ -165,8 +160,8 @@ function buildingSpriteRect(segment, sprite, project) {
 function drawBuildingSegments(segments, project) {
     if (!buildingAtlasReady) return;
     context.imageSmoothingEnabled = false;
-    for (const segment of window.VillageBuildingWalls.painterOrder(segments)) {
-        const id = window.VillageBuildingWalls.spriteId(segment);
+    for (const segment of window.VillageBuildingWalls.painterOrder(segments, project)) {
+        const id = window.VillageBuildingWalls.spriteId(segment, project);
         const sprite = BUILDING_RESOLVED_SPRITES[id];
         if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
         const path = BUILDING_PNG_PATHS[id];

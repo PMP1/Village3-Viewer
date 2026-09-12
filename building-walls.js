@@ -89,10 +89,19 @@
         return variant;
     }
 
+    function projectedSideWallSuffix(segment) {
+        if (segment.orientation !== "vertical") return undefined;
+        if (segment.side !== "west" && segment.side !== "east") return undefined;
+        if (segment.role !== "straight" && segment.role !== "end") return undefined;
+        return "wall.vertical." + segment.side;
+    }
+
     function spriteId(segment, projectOverride) {
         const prefix = "building." + segment.layer + ".";
         let suffix;
+        const sideWall = projectedSideWallSuffix(segment);
         if (segment.role === "corner") suffix = "wall.corner." + projectedCornerVariant(segment.variant, projectOverride);
+        else if (sideWall) suffix = sideWall;
         else if (segment.role === "end") suffix = "wall.end." + segment.variant;
         else if (segment.role === "doorway") suffix = "doorway." + segment.orientation;
         else if (segment.role.startsWith("door-")) suffix = "door." + segment.role.slice(5) + "." + segment.orientation;
