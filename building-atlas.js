@@ -1,8 +1,9 @@
 // Fixed source rectangles and pixel anchors; 32 art pixels remain one world metre.
 // LPC's 64x64 character frame is visual space only. Doors remain one 32px metre.
-// Doors still use the legacy SVG atlas. Wall geometry uses editable PNG templates.
+// Doors still use the legacy SVG atlas. Wall geometry uses editable image templates.
 const BUILDING_ATLAS_PATH = "./assets/village-building-walls.svg";
 const BUILDING_WALL_PNG_DIRECTORY = "./assets/building-walls-png/";
+const BUILDING_INTERNAL_WALL_DIRECTORY = "./assets/building-walls-internal/";
 const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.closed.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":0},
     "building.exterior.door.closed.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":64},
@@ -42,7 +43,7 @@ const PNG_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,
 const PNG_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
 // Side walls remain one-metre logical sections. Their 96 px canvas carries the
-// 64 px rise plus the 32 px descending run, independently of the rear bay.
+// 64 px rise plus the 32 px descending run, independently of horizontal bays.
 const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
@@ -58,6 +59,9 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.wall.end.west": PNG_HORIZONTAL,
     "building.exterior.wall.end.east.cutaway": PNG_CUTAWAY,
     "building.exterior.wall.end.west.cutaway": PNG_CUTAWAY,
+    "building.interior.wall.horizontal2.plain": PNG_BACK_WALL_2,
+    "building.interior.wall.horizontal1.left": PNG_BACK_WALL_1,
+    "building.interior.wall.horizontal1.right": PNG_BACK_WALL_1,
     "building.interior.wall.horizontal": PNG_HORIZONTAL,
     "building.interior.wall.vertical.west": PNG_VERTICAL_WEST,
     "building.interior.wall.vertical.east": PNG_VERTICAL_EAST,
@@ -77,11 +81,14 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.exterior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.end.east.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
     "building.exterior.wall.end.west.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
-    "building.interior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
-    "building.interior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
-    "building.interior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
-    "building.interior.wall.end.east": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
-    "building.interior.wall.end.west": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png"
+    "building.interior.wall.horizontal2.plain": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_2m.svg",
+    "building.interior.wall.horizontal1.left": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_left.svg",
+    "building.interior.wall.horizontal1.right": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_right.svg",
+    "building.interior.wall.horizontal": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_right.svg",
+    "building.interior.wall.vertical.west": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_vertical_west.svg",
+    "building.interior.wall.vertical.east": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_vertical_east.svg",
+    "building.interior.wall.end.east": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_right.svg",
+    "building.interior.wall.end.west": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_left.svg"
 });
 
 const BUILDING_RESOLVED_SPRITES = Object.freeze({ ...BUILDING_SPRITES, ...BUILDING_PNG_SPRITES });

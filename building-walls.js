@@ -60,8 +60,10 @@
         return screenNearHorizontalSide(projectOverride) === "south" ? "north" : "south";
     }
 
-    // Convert only a screen-rear exterior run into architectural modules. Input
-    // geometry remains one metre per segment and doors remain exactly one metre.
+    // Convert a horizontal wall run into architectural modules. Input geometry
+    // remains one metre per segment and doors remain exactly one metre. Exterior
+    // usage is limited to the screen-rear wall; internal horizontal partitions
+    // use the same composition rule with their own artwork.
     function groupRearRun(segments) {
         const grouped = [];
         let index = 0;
@@ -121,14 +123,17 @@
     }
 
     function extractInterior(footprint) {
-        return (footprint.partitions ?? []).flatMap(partition => classifyRun(rawRun(
-            "interior", partition.side,
-            {
-                x: partition.origin.x + (partition.side === "east" ? 1 : 0),
-                y: partition.origin.y + (partition.side === "south" ? 1 : 0)
-            },
-            partition.length, partition.doors
-        )));
+        return (footprint.partitions ?? []).flatMap(partition => {
+            const raw = rawRun(
+                "interior", partition.side,
+                {
+                    x: partition.origin.x + (partition.side === "east" ? 1 : 0),
+                    y: partition.origin.y + (partition.side === "south" ? 1 : 0)
+                },
+                partition.length, partition.doors
+            );
+            return horizontal(partition.side) ? groupRearRun(raw) : classifyRun(raw);
+        });
     }
 
     function projectedSideWallSuffix(segment) {
@@ -142,9 +147,13 @@
         const prefix = "building." + segment.layer + ".";
         let suffix;
         const sideWall = projectedSideWallSuffix(segment);
-        if (segment.role === "wall-bay-2") suffix = "back.wall2.plain";
-        else if (segment.role === "wall-filler-1") suffix = "back.wall1." + segment.variant;
-        else if (sideWall) suffix = sideWall;
+        if (segment.role === "wall-bay-2") {
+            suffix = segment.layer === "interior" ? "wall.horizontal2.plain" : "back.wall2.plain";
+        } else if (segment.role === "wall-filler-1") {
+            suffix = segment.layer === "interior"
+                ? "wall.horizontal1." + segment.variant
+                : "back.wall1." + segment.variant;
+        } else if (sideWall) suffix = sideWall;
         else if (segment.role === "end") suffix = "wall.end." + segment.variant;
         else if (segment.role === "doorway") suffix = "doorway." + segment.orientation;
         else if (segment.role.startsWith("door-")) suffix = "door." + segment.role.slice(5) + "." + segment.orientation;
