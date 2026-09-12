@@ -5,6 +5,7 @@ const ROOM_LABEL_MIN_SCALE = 10;
 const TILE_IDS = Object.freeze({
     grass: "terrain.grass",
     grassAlt: "terrain.grass-alt",
+    dirt: "terrain.dirt",
     woodFloor: "building.floor.wood",
     wallHorizontal: "building.wall.stone-horizontal",
     wallVertical: "building.wall.stone-vertical",
@@ -41,6 +42,23 @@ function drawGrassTile(tileContext, size, alternate = false) {
     tileContext.fillRect(size - 1, 0, 1, size);
 }
 
+function drawDirtTile(tileContext, size) {
+    tileContext.fillStyle = "#7d5b38";
+    tileContext.fillRect(0, 0, size, size);
+    tileContext.fillStyle = "#8f6b43";
+    tileContext.fillRect(3, 5, 3, 2);
+    tileContext.fillRect(20, 9, 2, 2);
+    tileContext.fillRect(10, 23, 4, 2);
+    tileContext.fillRect(26, 27, 2, 2);
+    tileContext.fillStyle = "#62462d";
+    tileContext.fillRect(7, 14, 2, 2);
+    tileContext.fillRect(23, 19, 3, 2);
+    tileContext.fillRect(16, 29, 2, 1);
+    tileContext.fillStyle = "rgba(212, 172, 111, 0.18)";
+    tileContext.fillRect(13, 7, 5, 1);
+    tileContext.fillRect(2, 26, 4, 1);
+}
+
 function drawWoodFloorTile(tileContext, size) {
     tileContext.fillStyle = "#8a633f";
     tileContext.fillRect(0, 0, size, size);
@@ -68,6 +86,9 @@ function tileCanvas(tileId) {
             break;
         case TILE_IDS.grassAlt:
             tile = createTileCanvas((tileContext, size) => drawGrassTile(tileContext, size, true));
+            break;
+        case TILE_IDS.dirt:
+            tile = createTileCanvas(drawDirtTile);
             break;
         case TILE_IDS.woodFloor:
             tile = createTileCanvas(drawWoodFloorTile);
@@ -127,6 +148,90 @@ function groundTileStep(range) {
     return Math.max(1, Math.ceil(Math.sqrt(count / MAX_VISIBLE_GROUND_TILES)));
 }
 
+function pointToSegmentDistanceSquared(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (dx === 0 && dy === 0) {
+        const px = point.x - start.x;
+        const py = point.y - start.y;
+        return px * px + py * py;
+    }
+    const t = clamp(
+        ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy),
+        0,
+        1
+    );
+    const closestX = start.x + t * dx;
+    const closestY = start.y + t * dy;
+    const px = point.x - closestX;
+    const py = point.y - closestY;
+    return px * px + py * py;
+}
+
+function pointInPolygon(point, points) {
+    let inside = false;
+    for (let current = 0, previous = points.length - 1; current < points.length; previous = current++) {
+        const a = points[current];
+        const b = points[previous];
+        const crosses = (a.y > point.y) !== (b.y > point.y) &&
+            point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+        if (crosses) inside = !inside;
+    }
+    return inside;
+}
+
+function mapFeatureTileRange(entity) {
+    const geometry = entity.geometry;
+    if (!geometry || !Array.isArray(geometry.points) || geometry.points.length === 0) return undefined;
+    const padding = geometry.type === "polyline" ? Math.max(0, geometry.width ?? 0) / 2 : 0;
+    const xs = geometry.points.map(point => point.x);
+    const ys = geometry.points.map(point => point.y);
+    return {
+        minX: Math.floor(Math.min(...xs) - padding),
+        maxX: Math.ceil(Math.max(...xs) + padding) - 1,
+        minY: Math.floor(Math.min(...ys) - padding),
+        maxY: Math.ceil(Math.max(...ys) + padding) - 1
+    };
+}
+
+function mapFeatureCoversTile(entity, x, y) {
+    const geometry = entity.geometry;
+    const centre = { x: x + 0.5, y: y + 0.5 };
+    if (entity.subtype === "market-square" && geometry?.type === "polygon") {
+        return pointInPolygon(centre, geometry.points);
+    }
+    if (entity.subtype === "road" && geometry?.type === "polyline") {
+        const radius = Math.max(0, geometry.width ?? 0) / 2;
+        const radiusSquared = radius * radius;
+        for (let index = 1; index < geometry.points.length; index++) {
+            if (pointToSegmentDistanceSquared(centre, geometry.points[index - 1], geometry.points[index]) <= radiusSquared) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+function drawMapFeatureGroundTiles(project) {
+    const frame = recording?.frames?.[frameIndex];
+    if (!frame) return;
+    const visible = visibleTileRange(project);
+    for (const entity of frame.entities) {
+        if (entity.category !== "map-feature" || (entity.subtype !== "road" && entity.subtype !== "market-square")) continue;
+        const range = mapFeatureTileRange(entity);
+        if (!range) continue;
+        const minX = Math.max(range.minX, visible.minX);
+        const maxX = Math.min(range.maxX, visible.maxX);
+        const minY = Math.max(range.minY, visible.minY);
+        const maxY = Math.min(range.maxY, visible.maxY);
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                if (mapFeatureCoversTile(entity, x, y)) drawTile(TILE_IDS.dirt, x, y, project);
+            }
+        }
+    }
+}
+
 function drawWorldTiles(project) {
     context.fillStyle = "#25492d";
     context.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -139,6 +244,8 @@ function drawWorldTiles(project) {
             drawTile(alternate ? TILE_IDS.grassAlt : TILE_IDS.grass, x, y, project, step, step);
         }
     }
+
+    drawMapFeatureGroundTiles(project);
 
     if (project.scale < 11) return;
     context.save();
@@ -405,6 +512,8 @@ if (renderMapBeforeTileRenderer) {
 window.VillageTileRenderer = Object.freeze({
     sourceTilePixels: SOURCE_TILE_PIXELS,
     tileIds: TILE_IDS,
+    mapFeatureTileRange,
+    mapFeatureCoversTile,
     isRaisedDepthEntity,
     raisedEntityDepth,
     wallSegmentDepth,

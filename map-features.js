@@ -110,34 +110,42 @@ function drawMapFeature(entity, project) {
     context.save();
 
     if (geometry?.type === "polygon" && geometry.points.length > 0) {
-        const points = geometry.points.map(project);
-        context.beginPath();
-        context.moveTo(points[0].x, points[0].y);
-        for (const point of points.slice(1)) context.lineTo(point.x, point.y);
-        context.closePath();
-        if (entity.subtype === "forest") {
-            context.fillStyle = selected ? "rgba(63, 185, 80, 0.34)" : "rgba(46, 125, 50, 0.24)";
-            context.strokeStyle = selected ? "#f2cc60" : "#2ea043";
-        } else {
-            context.fillStyle = selected ? "rgba(242, 204, 96, 0.28)" : "rgba(210, 153, 34, 0.12)";
-            context.strokeStyle = selected ? "#f2cc60" : "rgba(210, 153, 34, 0.55)";
+        // Market ground is now rendered as one-metre dirt tiles by tile-renderer.
+        // Keep this path only for forests and selection highlighting.
+        if (entity.subtype !== "market-square" || selected) {
+            const points = geometry.points.map(project);
+            context.beginPath();
+            context.moveTo(points[0].x, points[0].y);
+            for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+            context.closePath();
+            if (entity.subtype === "forest") {
+                context.fillStyle = selected ? "rgba(63, 185, 80, 0.34)" : "rgba(46, 125, 50, 0.24)";
+                context.strokeStyle = selected ? "#f2cc60" : "#2ea043";
+            } else {
+                context.fillStyle = "rgba(242, 204, 96, 0.28)";
+                context.strokeStyle = "#f2cc60";
+            }
+            context.lineWidth = selected ? 2.5 : 1.2;
+            context.fill();
+            context.stroke();
         }
-        context.lineWidth = selected ? 2.5 : 1.2;
-        context.fill();
-        context.stroke();
     } else if (geometry?.type === "polyline" && geometry.points.length > 1) {
-        const points = geometry.points.map(project);
-        context.strokeStyle = selected ? "#f2cc60" : "rgba(177, 143, 91, 0.72)";
-        context.lineWidth = Math.max(2, geometry.width * project.scale);
-        context.lineCap = "round";
-        context.lineJoin = "round";
-        context.beginPath();
-        context.moveTo(points[0].x, points[0].y);
-        for (const point of points.slice(1)) context.lineTo(point.x, point.y);
-        context.stroke();
-        context.strokeStyle = selected ? "#f2cc60" : "rgba(217, 183, 129, 0.42)";
-        context.lineWidth = Math.max(1, geometry.width * project.scale * 0.55);
-        context.stroke();
+        // Roads are tiled dirt ground now; retain the old broad stroke only as a
+        // clear selection overlay when a road is inspected.
+        if (entity.subtype !== "road" || selected) {
+            const points = geometry.points.map(project);
+            context.strokeStyle = selected ? "#f2cc60" : "rgba(177, 143, 91, 0.72)";
+            context.lineWidth = Math.max(2, geometry.width * project.scale);
+            context.lineCap = "round";
+            context.lineJoin = "round";
+            context.beginPath();
+            context.moveTo(points[0].x, points[0].y);
+            for (const point of points.slice(1)) context.lineTo(point.x, point.y);
+            context.stroke();
+            context.strokeStyle = selected ? "#f2cc60" : "rgba(217, 183, 129, 0.42)";
+            context.lineWidth = Math.max(1, geometry.width * project.scale * 0.55);
+            context.stroke();
+        }
     } else if (geometry?.type === "centered-rectangle") {
         const point = project(entity.position);
         const width = Math.max(3, geometry.width * project.scale);
