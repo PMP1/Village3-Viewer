@@ -1,43 +1,39 @@
-const TILE_ATLAS_PATH = "./assets/village-tiles.svg";
-const TILE_ATLAS_COLUMNS = new Map([
-    [TILE_IDS.grass, 0],
-    [TILE_IDS.grassAlt, 1],
-    [TILE_IDS.woodFloor, 2],
-    [TILE_IDS.wallHorizontal, 3],
-    [TILE_IDS.wallVertical, 4],
-    [TILE_IDS.doorHorizontalOpen, 5],
-    [TILE_IDS.doorHorizontalClosed, 6],
-    [TILE_IDS.doorHorizontalLocked, 7],
-    [TILE_IDS.doorVerticalOpen, 8],
-    [TILE_IDS.doorVerticalClosed, 9],
-    [TILE_IDS.doorVerticalLocked, 10],
-    ["fixture.hearth", 11],
-    ["fixture.bed", 12],
-    ["fixture.dining-table", 13],
-    ["fixture.service-counter", 14]
+const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
+const TILE_IMAGE_PATHS = new Map([
+    [TILE_IDS.grass, TILE_PNG_DIRECTORY + "grass.png"],
+    [TILE_IDS.grassAlt, TILE_PNG_DIRECTORY + "grass_alt.png"],
+    [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],
+    ["fixture.hearth", TILE_PNG_DIRECTORY + "hearth.png"],
+    ["fixture.bed", TILE_PNG_DIRECTORY + "bed.png"],
+    ["fixture.dining-table", TILE_PNG_DIRECTORY + "dining_table.png"],
+    ["fixture.service-counter", TILE_PNG_DIRECTORY + "service_counter.png"]
 ]);
 
-const tileAtlasImage = new Image();
-let tileAtlasReady = false;
-let tileAtlasFailed = false;
+const tileImages = new Map();
+const tileReady = new Set();
+const tileFailed = new Set();
 
-tileAtlasImage.addEventListener("load", () => {
-    tileAtlasReady = true;
-    if (recording && cameraInitialised) renderMap();
-});
-tileAtlasImage.addEventListener("error", () => {
-    tileAtlasFailed = true;
-});
-tileAtlasImage.src = window.__VILLAGE_VIEWER_ASSETS__?.[TILE_ATLAS_PATH] ?? TILE_ATLAS_PATH;
+for (const [tileId, path] of TILE_IMAGE_PATHS) {
+    const image = new Image();
+    tileImages.set(tileId, image);
+    image.addEventListener("load", () => {
+        tileReady.add(tileId);
+        if (recording && cameraInitialised) renderMap();
+    });
+    image.addEventListener("error", () => {
+        tileFailed.add(tileId);
+    });
+    image.src = window.__VILLAGE_VIEWER_ASSETS__?.[path] ?? path;
+}
 
 function drawAtlasTile(tileId, worldX, worldY, project, width = 1, height = 1) {
-    const column = TILE_ATLAS_COLUMNS.get(tileId);
-    if (!tileAtlasReady || column === undefined) return false;
+    const image = tileImages.get(tileId);
+    if (!image || !tileReady.has(tileId)) return false;
     const rect = tileScreenRect(worldX, worldY, width, height, project);
     context.imageSmoothingEnabled = false;
     context.drawImage(
-        tileAtlasImage,
-        column * SOURCE_TILE_PIXELS,
+        image,
+        0,
         0,
         SOURCE_TILE_PIXELS,
         SOURCE_TILE_PIXELS,
@@ -64,17 +60,16 @@ function fixtureTileId(entity) {
 }
 
 function drawFixtureTile(entity, project, tileId) {
-    if (!tileAtlasReady) return false;
+    const image = tileImages.get(tileId);
+    if (!image || !tileReady.has(tileId)) return false;
     const bounds = entityScreenBounds(entity, project);
     if (!bounds) return false;
-    const column = TILE_ATLAS_COLUMNS.get(tileId);
-    if (column === undefined) return false;
 
     context.save();
     context.imageSmoothingEnabled = false;
     context.drawImage(
-        tileAtlasImage,
-        column * SOURCE_TILE_PIXELS,
+        image,
+        0,
         0,
         SOURCE_TILE_PIXELS,
         SOURCE_TILE_PIXELS,
@@ -112,8 +107,9 @@ drawEntity = function(entity, point, project) {
 };
 
 window.VillageTileAtlas = Object.freeze({
-    source: TILE_ATLAS_PATH,
-    tileCount: TILE_ATLAS_COLUMNS.size,
-    get ready() { return tileAtlasReady; },
-    get failed() { return tileAtlasFailed; }
+    source: TILE_PNG_DIRECTORY,
+    sources: Object.freeze(Object.fromEntries(TILE_IMAGE_PATHS)),
+    tileCount: TILE_IMAGE_PATHS.size,
+    get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },
+    get failed() { return tileFailed.size > 0; }
 });
