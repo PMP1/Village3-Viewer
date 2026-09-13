@@ -65,6 +65,32 @@
         return humanize(String(value).replace(/:/g, " · "));
     }
 
+    function planningReason(character) {
+        const type = character.properties?.currentGoalReasonType;
+        const id = friendlyLabel(character.properties?.currentGoalReasonId);
+        if (!type) return "No active reason";
+
+        switch (type) {
+            case "need": return id ? `${id} need` : "Physical need";
+            case "activity": return id ? `Activity · ${id}` : "Activity";
+            case "request": return id ? `Request · ${id}` : "Request";
+            case "agenda": return id ? `Agenda · ${id}` : "Agenda";
+            default: return id ? `${friendlyLabel(type)} · ${id}` : friendlyLabel(type);
+        }
+    }
+
+    function detailLine(labelText, value, fallback) {
+        const line = document.createElement("span");
+        line.className = "person-goal";
+
+        const label = document.createElement("span");
+        label.className = "person-detail-label";
+        label.textContent = labelText;
+
+        line.append(label, document.createTextNode(` ${value ?? fallback}`));
+        return line;
+    }
+
     function initials(label) {
         const words = String(label ?? "?").trim().split(/\s+/).filter(Boolean);
         return words.slice(0, 2).map(word => word[0]?.toUpperCase() ?? "").join("") || "?";
@@ -136,15 +162,35 @@
             stats.className = "person-stats";
             for (const definition of statDefinitions) stats.append(statRow(definition, character));
 
-            const goal = document.createElement("span");
-            goal.className = "person-goal";
-            goal.innerHTML = `<span class="person-detail-label">Goal</span> ${friendlyLabel(character.properties?.currentGoal) ?? "No active goal"}`;
-
-            const action = document.createElement("span");
+            const goal = detailLine(
+                "Goal",
+                friendlyLabel(character.properties?.currentGoal),
+                "No active goal"
+            );
+            const reason = detailLine("Why", planningReason(character), "No active reason");
+            const plan = detailLine(
+                "Plan",
+                friendlyLabel(character.properties?.currentPlan),
+                "No active plan"
+            );
+            const subgoal = detailLine(
+                "Subgoal",
+                friendlyLabel(character.properties?.currentSubgoal),
+                "None"
+            );
+            const next = detailLine(
+                "Next",
+                friendlyLabel(character.properties?.nextPlanStep),
+                "Nothing queued"
+            );
+            const action = detailLine(
+                "Doing",
+                friendlyLabel(character.state?.action),
+                "Idle / deciding"
+            );
             action.className = "person-action";
-            action.innerHTML = `<span class="person-detail-label">Doing</span> ${friendlyLabel(character.state?.action) ?? "Idle / deciding"}`;
 
-            details.append(name, stats, goal, action);
+            details.append(name, stats, goal, reason, plan, subgoal, next, action);
             card.append(avatar, details);
             fragment.append(card);
         }
