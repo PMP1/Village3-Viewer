@@ -7,125 +7,45 @@
         south: 2,
         east: 3
     });
-    const LPC_TEMPLATE_PATH = "./assets/characters/lpc-villager-template.svg";
     const LPC_SHEET_WIDTH = LPC_FRAME_SIZE * LPC_WALK_FRAMES;
     const LPC_SHEET_HEIGHT = LPC_FRAME_SIZE * 4;
     // The native LPC frame is visual space only: it has no collision meaning and
     // does not change the simulation/navigation grid from one metre per cell.
     const LPC_VISUAL_SIZE_METRES = 2;
-    const LPC_GROUND_ANCHOR_Y = 58;
+    const LPC_GROUND_ANCHOR_Y = 60;
     const MIN_CHARACTER_SPRITE_PIXELS = 24;
     const MAX_CHARACTER_SPRITE_PIXELS = 128;
 
-    const characterSheets = new Map();
+    // These are genuine Universal LPC walk layers, kept separate so appearance
+    // can become data-driven later without changing the frame/render contract.
+    const LPC_LAYER_DEFINITIONS = Object.freeze([
+        Object.freeze({ id: "body", path: "./assets/characters/lpc/body-male-walk.png" }),
+        Object.freeze({ id: "pants", path: "./assets/characters/lpc/pants-male-walk.png" }),
+        Object.freeze({ id: "shirt", path: "./assets/characters/lpc/shirt-male-walk.png" }),
+        Object.freeze({ id: "head", path: "./assets/characters/lpc/head-human-male-walk.png" })
+    ]);
+
     const facingByCharacter = new Map();
-
-    const skinPalettes = [
-        ["#e7bd91", "#b97852"],
-        ["#d9a779", "#9d6345"],
-        ["#b97955", "#744833"],
-        ["#8c5a42", "#52362b"]
-    ];
-    const tunicPalettes = [
-        ["#477db3", "#28527c"],
-        ["#9a5a47", "#66382f"],
-        ["#5d8754", "#385b35"],
-        ["#9a793d", "#684f27"],
-        ["#765d9e", "#4d3c70"]
-    ];
-    const hairPalettes = ["#3b2a20", "#6b452b", "#9a6a3c", "#292729", "#704f3f"];
-    const trouserPalettes = ["#4d566d", "#625147", "#3e5d50", "#554968", "#665c3f"];
-
-    const templateImage = new Image();
-    let templateReady = false;
-    let templateFailed = false;
-    templateImage.addEventListener("load", () => {
-        templateReady = true;
-        characterSheets.clear();
-        if (recording && cameraInitialised) renderMap();
-    });
-    templateImage.addEventListener("error", () => {
-        templateFailed = true;
-    });
-    templateImage.src = window.__VILLAGE_VIEWER_ASSETS__?.[LPC_TEMPLATE_PATH] ?? LPC_TEMPLATE_PATH;
-
-    function stableHash(value) {
-        let hash = 2166136261;
-        for (const character of String(value)) {
-            hash ^= character.charCodeAt(0);
-            hash = Math.imul(hash, 16777619);
-        }
-        return hash >>> 0;
-    }
-
-    function appearanceForCharacter(id) {
-        const hash = stableHash(id);
-        const skin = skinPalettes[hash % skinPalettes.length];
-        const tunic = tunicPalettes[Math.floor(hash / 7) % tunicPalettes.length];
-        return Object.freeze({
-            skinLight: skin[0],
-            skinShadow: skin[1],
-            tunicLight: tunic[0],
-            tunicShadow: tunic[1],
-            hair: hairPalettes[Math.floor(hash / 31) % hairPalettes.length],
-            trousers: trouserPalettes[Math.floor(hash / 97) % trouserPalettes.length]
+    const spriteLayers = LPC_LAYER_DEFINITIONS.map(definition => {
+        const layer = {
+            id: definition.id,
+            path: definition.path,
+            image: new Image(),
+            ready: false,
+            failed: false
+        };
+        layer.image.addEventListener("load", () => {
+            layer.ready = true;
+            layer.failed = false;
+            if (recording && cameraInitialised) renderMap();
         });
-    }
-
-    function hexRgb(hex) {
-        const value = Number.parseInt(hex.slice(1), 16);
-        return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
-    }
-
-    function replaceRgb(data, offset, rgb) {
-        data[offset] = rgb[0];
-        data[offset + 1] = rgb[1];
-        data[offset + 2] = rgb[2];
-    }
-
-    function recolourTemplatePixels(imageData, appearance) {
-        const skinLight = hexRgb(appearance.skinLight);
-        const skinShadow = hexRgb(appearance.skinShadow);
-        const tunicLight = hexRgb(appearance.tunicLight);
-        const tunicShadow = hexRgb(appearance.tunicShadow);
-        const hair = hexRgb(appearance.hair);
-        const trousers = hexRgb(appearance.trousers);
-        const data = imageData.data;
-
-        for (let offset = 0; offset < data.length; offset += 4) {
-            if (data[offset + 3] === 0) continue;
-            const r = data[offset];
-            const g = data[offset + 1];
-            const b = data[offset + 2];
-            if (r === 255 && g === 0 && b === 255) replaceRgb(data, offset, skinLight);
-            else if (r === 170 && g === 0 && b === 170) replaceRgb(data, offset, skinShadow);
-            else if (r === 0 && g === 255 && b === 255) replaceRgb(data, offset, tunicLight);
-            else if (r === 0 && g === 136 && b === 136) replaceRgb(data, offset, tunicShadow);
-            else if (r === 255 && g === 255 && b === 0) replaceRgb(data, offset, hair);
-            else if (r === 0 && g === 0 && b === 255) replaceRgb(data, offset, trousers);
-        }
-        return imageData;
-    }
-
-    function characterSheet(characterId) {
-        const cached = characterSheets.get(characterId);
-        if (cached) return cached;
-        if (!templateReady) return undefined;
-
-        const sheet = document.createElement("canvas");
-        sheet.width = LPC_SHEET_WIDTH;
-        sheet.height = LPC_SHEET_HEIGHT;
-        const sheetContext = sheet.getContext("2d");
-        if (!sheetContext) return undefined;
-        sheetContext.imageSmoothingEnabled = false;
-        sheetContext.drawImage(templateImage, 0, 0, LPC_SHEET_WIDTH, LPC_SHEET_HEIGHT);
-        const pixels = sheetContext.getImageData(0, 0, LPC_SHEET_WIDTH, LPC_SHEET_HEIGHT);
-        recolourTemplatePixels(pixels, appearanceForCharacter(characterId));
-        sheetContext.clearRect(0, 0, LPC_SHEET_WIDTH, LPC_SHEET_HEIGHT);
-        sheetContext.putImageData(pixels, 0, 0);
-        characterSheets.set(characterId, sheet);
-        return sheet;
-    }
+        layer.image.addEventListener("error", () => {
+            layer.failed = true;
+            layer.ready = false;
+        });
+        layer.image.src = window.__VILLAGE_VIEWER_ASSETS__?.[definition.path] ?? definition.path;
+        return layer;
+    });
 
     function entityFromPreviousFrame(id) {
         if (!recording || frameIndex <= 0) return undefined;
@@ -177,29 +97,56 @@
         };
     }
 
-    function drawCharacterSprite(entity, project) {
-        const sheet = characterSheet(entity.id);
-        if (!sheet) return false;
-        const state = characterAnimationState(entity);
-        const row = LPC_DIRECTION_ROWS[state.direction];
-        const bounds = characterSpriteBounds(entity, project);
+    function frameSourceRect(state) {
+        return {
+            x: state.frame * LPC_FRAME_SIZE,
+            y: LPC_DIRECTION_ROWS[state.direction] * LPC_FRAME_SIZE,
+            width: LPC_FRAME_SIZE,
+            height: LPC_FRAME_SIZE
+        };
+    }
+
+    function layersReady() {
+        return spriteLayers.every(layer => layer.ready);
+    }
+
+    function drawCharacterLayers(state, bounds) {
+        if (!layersReady()) return false;
+        const source = frameSourceRect(state);
         const width = Math.max(1, Math.round(bounds.width));
         const height = Math.max(1, Math.round(bounds.height));
+        const left = Math.round(bounds.left);
+        const top = Math.round(bounds.top);
+
+        for (const layer of spriteLayers) {
+            context.drawImage(
+                layer.image,
+                source.x,
+                source.y,
+                source.width,
+                source.height,
+                left,
+                top,
+                width,
+                height
+            );
+        }
+        return true;
+    }
+
+    function drawCharacterSprite(entity, project) {
+        const state = characterAnimationState(entity);
+        const bounds = characterSpriteBounds(entity, project);
 
         context.save();
         context.imageSmoothingEnabled = false;
-        context.drawImage(
-            sheet,
-            state.frame * LPC_FRAME_SIZE,
-            row * LPC_FRAME_SIZE,
-            LPC_FRAME_SIZE,
-            LPC_FRAME_SIZE,
-            Math.round(bounds.left),
-            Math.round(bounds.top),
-            width,
-            height
-        );
+        if (!drawCharacterLayers(state, bounds)) {
+            context.restore();
+            return false;
+        }
 
+        const width = Math.max(1, Math.round(bounds.width));
+        const height = Math.max(1, Math.round(bounds.height));
         const selected = entity.id === selectedEntityId;
         if (selected) {
             context.strokeStyle = "#f2cc60";
@@ -243,7 +190,6 @@
     };
 
     window.VillageCharacterRenderer = Object.freeze({
-        assetPath: LPC_TEMPLATE_PATH,
         frameSize: LPC_FRAME_SIZE,
         sheetWidth: LPC_SHEET_WIDTH,
         sheetHeight: LPC_SHEET_HEIGHT,
@@ -251,12 +197,13 @@
         walkFrames: LPC_WALK_FRAMES,
         visualSizeMetres: LPC_VISUAL_SIZE_METRES,
         groundAnchorY: LPC_GROUND_ANCHOR_Y,
-        appearanceForCharacter,
+        layers: LPC_LAYER_DEFINITIONS,
         directionFromDelta,
         characterAnimationState,
         characterSpriteBounds,
-        recolourTemplatePixels,
-        get ready() { return templateReady; },
-        get failed() { return templateFailed; }
+        frameSourceRect,
+        drawCharacterLayers,
+        get ready() { return layersReady(); },
+        get failed() { return spriteLayers.some(layer => layer.failed); }
     });
 })();
