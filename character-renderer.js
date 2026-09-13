@@ -17,14 +17,51 @@
     const MIN_CHARACTER_SPRITE_PIXELS = 24;
     const MAX_CHARACTER_SPRITE_PIXELS = 128;
 
-    // These are genuine Universal LPC walk layers, kept separate so appearance
-    // can become data-driven later without changing the frame/render contract.
-    const LPC_LAYER_DEFINITIONS = Object.freeze([
-        Object.freeze({ id: "body", path: "./assets/characters/lpc/body-male-walk.png" }),
-        Object.freeze({ id: "pants", path: "./assets/characters/lpc/pants-male-walk.png" }),
-        Object.freeze({ id: "shirt", path: "./assets/characters/lpc/shirt-male-walk.png" }),
-        Object.freeze({ id: "head", path: "./assets/characters/lpc/head-human-male-walk.png" })
+    // Additional appearance layers are pinned to one upstream Universal LPC
+    // revision. Direct image compositing remains safe here because the viewer never
+    // reads pixels back from the canvas.
+    const LPC_UPSTREAM_COMMIT = "553ba7562534cbf32e7d9a502660f569d6b26512";
+    const LPC_UPSTREAM_ROOT = `https://raw.githubusercontent.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator/${LPC_UPSTREAM_COMMIT}/spritesheets/`;
+    const upstream = path => `${LPC_UPSTREAM_ROOT}${path}`;
+
+    const LPC_ASSET_DEFINITIONS = Object.freeze([
+        Object.freeze({ id: "body-male", path: "./assets/characters/lpc/body-male-walk.png" }),
+        Object.freeze({ id: "body-female", path: upstream("body/bodies/female/walk.png") }),
+        Object.freeze({ id: "pants-male", path: "./assets/characters/lpc/pants-male-walk.png" }),
+        Object.freeze({ id: "pants-female", path: upstream("legs/pants/thin/walk.png") }),
+        Object.freeze({ id: "shirt-male", path: "./assets/characters/lpc/shirt-male-walk.png" }),
+        Object.freeze({ id: "shirt-female", path: upstream("torso/clothes/shortsleeve/shortsleeve/female/walk.png") }),
+        Object.freeze({ id: "apron-male", path: upstream("torso/aprons/apron/male/walk/white.png") }),
+        Object.freeze({ id: "apron-female", path: upstream("torso/aprons/apron/female/walk/white.png") }),
+        Object.freeze({ id: "vest-male", path: upstream("torso/clothes/vest/male/walk/brown.png") }),
+        Object.freeze({ id: "head-male", path: "./assets/characters/lpc/head-human-male-walk.png" }),
+        Object.freeze({ id: "head-female", path: upstream("head/heads/human/female/walk.png") }),
+        Object.freeze({ id: "hair-balding", path: upstream("hair/balding/adult/walk.png") }),
+        Object.freeze({ id: "hair-bedhead", path: upstream("hair/bedhead/adult/walk.png") }),
+        Object.freeze({ id: "hair-bob", path: upstream("hair/bob/adult/walk.png") }),
+        Object.freeze({ id: "hair-bob-side-part", path: upstream("hair/bob_side_part/adult/walk.png") }),
+        Object.freeze({ id: "hair-long-bangs", path: upstream("hair/bangslong/adult/walk.png") }),
+        Object.freeze({ id: "hair-short-bangs", path: upstream("hair/bangsshort/adult/walk.png") })
     ]);
+
+    const VALID_BODY_TYPES = new Set(["male", "female"]);
+    const VALID_HAIR_STYLES = new Set([
+        "none",
+        "balding",
+        "bedhead",
+        "bob",
+        "bob-side-part",
+        "long-bangs",
+        "short-bangs"
+    ]);
+    const VALID_OUTERWEAR = new Set(["none", "apron", "vest"]);
+    const DEFAULT_APPEARANCE = Object.freeze({
+        bodyType: "male",
+        hairStyle: "none",
+        lowerBody: "pants",
+        torso: "shirt",
+        outerwear: "none"
+    });
 
     const facingByCharacter = new Map();
     let movementProgress = 0;
@@ -166,7 +203,7 @@
         renderMap();
     };
 
-    const spriteLayers = LPC_LAYER_DEFINITIONS.map(definition => {
+    const spriteLayers = LPC_ASSET_DEFINITIONS.map(definition => {
         const layer = {
             id: definition.id,
             path: definition.path,
@@ -186,6 +223,52 @@
         layer.image.src = window.__VILLAGE_VIEWER_ASSETS__?.[definition.path] ?? definition.path;
         return layer;
     });
+    const spriteLayerById = new Map(spriteLayers.map(layer => [layer.id, layer]));
+
+    function appearanceFromEntity(entity) {
+        const properties = entity?.properties ?? {};
+        const bodyType = VALID_BODY_TYPES.has(properties.appearanceBodyType)
+            ? properties.appearanceBodyType
+            : DEFAULT_APPEARANCE.bodyType;
+        const hairStyle = VALID_HAIR_STYLES.has(properties.appearanceHairStyle)
+            ? properties.appearanceHairStyle
+            : DEFAULT_APPEARANCE.hairStyle;
+        const outerwear = VALID_OUTERWEAR.has(properties.appearanceOuterwear)
+            ? properties.appearanceOuterwear
+            : DEFAULT_APPEARANCE.outerwear;
+
+        return {
+            bodyType,
+            hairStyle,
+            lowerBody: properties.appearanceLowerBody === "pants" ? "pants" : DEFAULT_APPEARANCE.lowerBody,
+            torso: properties.appearanceTorso === "shirt" ? "shirt" : DEFAULT_APPEARANCE.torso,
+            // The current LPC vest layer is male-body-specific. Invalid combinations
+            // degrade to the base outfit rather than breaking the whole character.
+            outerwear: outerwear === "vest" && bodyType !== "male" ? "none" : outerwear
+        };
+    }
+
+    function layerIdsForAppearance(appearance) {
+        const ids = [
+            `body-${appearance.bodyType}`,
+            `pants-${appearance.bodyType}`,
+            `shirt-${appearance.bodyType}`
+        ];
+        if (appearance.outerwear !== "none") {
+            ids.push(`${appearance.outerwear}-${appearance.bodyType}`);
+        }
+        ids.push(`head-${appearance.bodyType}`);
+        if (appearance.hairStyle !== "none") {
+            ids.push(`hair-${appearance.hairStyle}`);
+        }
+        return ids;
+    }
+
+    function selectedSpriteLayers(entity) {
+        const ids = layerIdsForAppearance(appearanceFromEntity(entity));
+        const layers = ids.map(id => spriteLayerById.get(id));
+        return layers.every(Boolean) ? layers : undefined;
+    }
 
     function entityFromPreviousFrame(id) {
         if (!recording || frameIndex <= 0) return undefined;
@@ -263,19 +346,21 @@
         };
     }
 
-    function layersReady() {
-        return spriteLayers.every(layer => layer.ready);
+    function layersReady(entity) {
+        const layers = selectedSpriteLayers(entity);
+        return Boolean(layers) && layers.every(layer => layer.ready);
     }
 
-    function drawCharacterLayers(state, bounds) {
-        if (!layersReady()) return false;
+    function drawCharacterLayers(entity, state, bounds) {
+        const layers = selectedSpriteLayers(entity);
+        if (!layers || !layers.every(layer => layer.ready)) return false;
         const source = frameSourceRect(state);
         const width = Math.max(1, Math.round(bounds.width));
         const height = Math.max(1, Math.round(bounds.height));
         const left = Math.round(bounds.left);
         const top = Math.round(bounds.top);
 
-        for (const layer of spriteLayers) {
+        for (const layer of layers) {
             context.drawImage(
                 layer.image,
                 source.x,
@@ -297,7 +382,7 @@
 
         context.save();
         context.imageSmoothingEnabled = false;
-        if (!drawCharacterLayers(state, bounds)) {
+        if (!drawCharacterLayers(entity, state, bounds)) {
             context.restore();
             return false;
         }
@@ -346,6 +431,7 @@
         drawEntityBeforeCharacterRenderer(entity, point, project);
     };
 
+    const defaultEntity = { category: "character", properties: {} };
     window.VillageCharacterRenderer = Object.freeze({
         frameSize: LPC_FRAME_SIZE,
         sheetWidth: LPC_SHEET_WIDTH,
@@ -355,7 +441,10 @@
         walkFrameDurationMs: LPC_WALK_FRAME_DURATION_MS,
         visualSizeMetres: LPC_VISUAL_SIZE_METRES,
         groundAnchorY: LPC_GROUND_ANCHOR_Y,
-        layers: LPC_LAYER_DEFINITIONS,
+        upstreamCommit: LPC_UPSTREAM_COMMIT,
+        layers: LPC_ASSET_DEFINITIONS,
+        appearanceFromEntity,
+        layerIdsForAppearance,
         directionFromDelta,
         characterAnimationState,
         characterSpriteBounds,
@@ -366,7 +455,7 @@
         interpolatedFrame,
         get movementProgress() { return movementProgress; },
         get playbackAnimationTimeMs() { return playbackAnimationTimeMs; },
-        get ready() { return layersReady(); },
+        get ready() { return layersReady(defaultEntity); },
         get failed() { return spriteLayers.some(layer => layer.failed); }
     });
 })();
