@@ -189,8 +189,14 @@
                 "Idle / deciding"
             );
             action.className = "person-action";
+            const latestDecision = latestDecisionForCharacter(character);
+            const decision = detailLine(
+                "Decision",
+                latestDecision ? formatEventMessage(latestDecision.message) : undefined,
+                "No decision yet"
+            );
 
-            details.append(name, stats, goal, reason, plan, subgoal, next, action);
+            details.append(name, stats, goal, reason, plan, subgoal, next, action, decision);
             card.append(avatar, details);
             fragment.append(card);
         }
@@ -213,6 +219,20 @@
         if (event.actorIds?.includes(character.id)) return true;
         if (event.entityIds?.includes(character.id)) return true;
         return messageMentionsCharacter(event.message, character);
+    }
+
+    function latestDecisionForCharacter(character) {
+        if (!recording || !character) return undefined;
+        const currentTick = recording.frames[frameIndex]?.tick ?? 0;
+        let latest;
+
+        for (const event of recording.events ?? []) {
+            if (event.level !== "decision" || event.tick > currentTick) continue;
+            if (!eventMatchesCharacter(event, character)) continue;
+            if (!latest || event.tick >= latest.tick) latest = event;
+        }
+
+        return latest;
     }
 
     function renderCharacterEvents() {
@@ -298,6 +318,27 @@
         if (entity?.category !== "character") return;
         focusedCharacterId = entity.id;
         renderEvents();
+    };
+
+    const originalRenderInspector = renderInspector;
+    renderInspector = function renderInspectorWithLatestDecision() {
+        originalRenderInspector();
+        const character = selectedEntity();
+        if (character?.category !== "character") return;
+
+        const decision = latestDecisionForCharacter(character);
+        const list = inspectorElement.querySelector(".kv");
+        if (!decision || !list) return;
+
+        const decisionTerm = document.createElement("dt");
+        decisionTerm.textContent = "Latest decision";
+        const decisionDescription = document.createElement("dd");
+        decisionDescription.textContent = formatEventMessage(decision.message);
+        const timeTerm = document.createElement("dt");
+        timeTerm.textContent = "Decision time";
+        const timeDescription = document.createElement("dd");
+        timeDescription.textContent = eventTimeLabel(decision);
+        list.append(decisionTerm, decisionDescription, timeTerm, timeDescription);
     };
 
     renderEvents = renderCharacterEvents;
