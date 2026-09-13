@@ -18,9 +18,9 @@
     const MAX_CHARACTER_SPRITE_PIXELS = 128;
 
     // Additional appearance layers are pinned to one upstream Universal LPC
-    // revision. Direct image compositing remains safe here because the viewer never
-    // reads pixels back from the canvas. Palette-style colour filters are applied
-    // only while drawing individual visual layers.
+    // revision. Colour variants use the same palette swapping approach as the LPC
+    // generator rather than browser canvas filters, which are not reliable across
+    // all browsers and cannot recolour neutral white/grey pixels by hue rotation.
     const LPC_UPSTREAM_COMMIT = "553ba7562534cbf32e7d9a502660f569d6b26512";
     const LPC_UPSTREAM_ROOT = `https://raw.githubusercontent.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator/${LPC_UPSTREAM_COMMIT}/spritesheets/`;
     const upstream = path => `${LPC_UPSTREAM_ROOT}${path}`;
@@ -36,7 +36,7 @@
         Object.freeze({ id: "shirt-female", path: upstream("torso/clothes/shortsleeve/shortsleeve/female/walk.png") }),
         Object.freeze({ id: "apron-male", path: upstream("torso/aprons/apron/male/walk/white.png") }),
         Object.freeze({ id: "apron-female", path: upstream("torso/aprons/apron/female/walk/white.png") }),
-        Object.freeze({ id: "vest-male", path: upstream("torso/clothes/vest/male/walk/brown.png") }),
+        Object.freeze({ id: "vest-male", path: upstream("torso/clothes/vest/male/walk/white.png") }),
         Object.freeze({ id: "head-male", path: "./assets/characters/lpc/head-human-male-walk.png" }),
         Object.freeze({ id: "head-female", path: upstream("head/heads/human/female/walk.png") }),
         Object.freeze({ id: "hair-balding", path: upstream("hair/balding/adult/walk.png") }),
@@ -47,19 +47,35 @@
         Object.freeze({ id: "hair-short-bangs", path: upstream("hair/bangsshort/adult/walk.png") })
     ]);
 
-    const LPC_COLOR_FILTERS = Object.freeze({
-        black: "grayscale(1) brightness(0.32)",
-        "dark-brown": "sepia(1) saturate(2.2) hue-rotate(345deg) brightness(0.5)",
-        brown: "sepia(1) saturate(1.7) hue-rotate(350deg) brightness(0.72)",
-        auburn: "sepia(1) saturate(3.4) hue-rotate(320deg) brightness(0.72)",
-        blonde: "sepia(1) saturate(1.4) hue-rotate(355deg) brightness(1.18)",
-        grey: "grayscale(1) brightness(0.85)",
-        cream: "sepia(0.35) saturate(0.8) brightness(1.03)",
-        blue: "sepia(1) saturate(3.2) hue-rotate(165deg) brightness(0.82)",
-        green: "sepia(1) saturate(2.8) hue-rotate(75deg) brightness(0.76)",
-        red: "sepia(1) saturate(3.6) hue-rotate(320deg) brightness(0.82)",
-        ochre: "sepia(1) saturate(2.4) hue-rotate(350deg) brightness(0.92)",
-        charcoal: "grayscale(1) brightness(0.5)"
+    // Exact ULPC source/target palettes from palette_definitions/cloth/cloth_ulpc.json
+    // and palette_definitions/hair/hair_ulpc.json at LPC_UPSTREAM_COMMIT.
+    const LPC_CLOTH_SOURCE_PALETTE = Object.freeze([
+        "#281820", "#4D4A5D", "#958080", "#C4B59F", "#E5E6C7", "#FFFFFF"
+    ]);
+    const LPC_CLOTH_TARGET_PALETTES = Object.freeze({
+        cream: Object.freeze(["#3e2613", "#684415", "#986A20", "#B78C41", "#B7996A", "#CFC587"]),
+        blue: Object.freeze(["#180716", "#281E41", "#322D6A", "#3C49AD", "#466AC9", "#61A0EF"]),
+        green: Object.freeze(["#101820", "#192832", "#0B5C2F", "#214437", "#2F8136", "#64A42C"]),
+        red: Object.freeze(["#1d131e", "#400B1F", "#651117", "#82171C", "#AB1E1E", "#CD2429"]),
+        ochre: Object.freeze(["#301723", "#5F2F25", "#BA5B23", "#D99431", "#F3C03F", "#FFE360"]),
+        brown: Object.freeze(["#1d131e", "#411E05", "#4B2B13", "#62351C", "#744B30", "#996B4A"]),
+        charcoal: Object.freeze(["#000000", "#130D14", "#1C2222", "#2A3034", "#4A5057", "#6E7675"])
+    });
+    const LPC_FOOTWEAR_TARGET_PALETTES = Object.freeze({
+        brown: LPC_CLOTH_TARGET_PALETTES.brown,
+        "dark-brown": Object.freeze(["#2b1c1d", "#311210", "#4B2B13", "#704325", "#75502D", "#9A6F37"]),
+        black: Object.freeze(["#000000", "#101414", "#1C2222", "#22282A", "#2A3034", "#4A5057"])
+    });
+    const LPC_HAIR_SOURCE_PALETTE = Object.freeze([
+        "#260D14", "#6A1108", "#A42600", "#BF4000", "#E55600", "#FF8A00"
+    ]);
+    const LPC_HAIR_TARGET_PALETTES = Object.freeze({
+        black: Object.freeze(["#000000", "#080A0A", "#101414", "#1C2222", "#31313E", "#4A5057"]),
+        "dark-brown": Object.freeze(["#050100", "#160701", "#290E02", "#421603", "#5F1F04", "#792806"]),
+        brown: Object.freeze(["#200C0D", "#3A130E", "#63200B", "#81310A", "#B6550E", "#D28102"]),
+        auburn: Object.freeze(["#260D14", "#3E111A", "#73171E", "#9E1F1F", "#C7341B", "#E74716"]),
+        blonde: Object.freeze(["#331313", "#552B15", "#AC5D1F", "#E09E2B", "#FCCF56", "#FFE67D"]),
+        grey: Object.freeze(["#0E0E0E", "#292929", "#4B4B4B", "#777777", "#AAAAAA", "#D9D9D9"])
     });
 
     const VALID_BODY_TYPES = new Set(["male", "female"]);
@@ -92,6 +108,7 @@
     });
 
     const facingByCharacter = new Map();
+    const recolouredLayerCache = new Map();
     let movementProgress = 0;
     let playbackAnimationTimeMs = 0;
     let transitionStartedAt;
@@ -248,6 +265,7 @@
             layer.failed = true;
             layer.ready = false;
         });
+        layer.image.crossOrigin = "anonymous";
         layer.image.src = window.__VILLAGE_VIEWER_ASSETS__?.[definition.path] ?? definition.path;
         return layer;
     });
@@ -319,14 +337,83 @@
         return layers.every(Boolean) ? layers : undefined;
     }
 
-    function colourFilterForLayer(layerId, appearance) {
-        let colour;
-        if (layerId.startsWith("hair-")) colour = appearance.hairColor;
-        else if (layerId.startsWith("pants-")) colour = appearance.lowerBodyColor;
-        else if (layerId.startsWith("shirt-")) colour = appearance.torsoColor;
-        else if (layerId.startsWith("apron-") || layerId.startsWith("vest-")) colour = appearance.outerwearColor;
-        else if (layerId.startsWith("boots-")) colour = appearance.footwearColor;
-        return colour ? LPC_COLOR_FILTERS[colour] ?? "none" : "none";
+    function colourKeyForLayer(layerId, appearance) {
+        if (layerId.startsWith("hair-")) return appearance.hairColor;
+        if (layerId.startsWith("pants-")) return appearance.lowerBodyColor;
+        if (layerId.startsWith("shirt-")) return appearance.torsoColor;
+        if (layerId.startsWith("apron-") || layerId.startsWith("vest-")) return appearance.outerwearColor;
+        if (layerId.startsWith("boots-")) return appearance.footwearColor;
+        return undefined;
+    }
+
+    function paletteMappingForLayer(layerId, appearance) {
+        const colour = colourKeyForLayer(layerId, appearance);
+        if (!colour) return undefined;
+        if (layerId.startsWith("hair-")) {
+            const target = LPC_HAIR_TARGET_PALETTES[colour];
+            return target ? { key: `hair:${colour}`, source: LPC_HAIR_SOURCE_PALETTE, target } : undefined;
+        }
+        if (layerId.startsWith("boots-")) {
+            const target = LPC_FOOTWEAR_TARGET_PALETTES[colour];
+            return target ? { key: `footwear:${colour}`, source: LPC_CLOTH_SOURCE_PALETTE, target } : undefined;
+        }
+        const target = LPC_CLOTH_TARGET_PALETTES[colour];
+        return target ? { key: `cloth:${colour}`, source: LPC_CLOTH_SOURCE_PALETTE, target } : undefined;
+    }
+
+    function rgbFromHex(hex) {
+        return {
+            r: Number.parseInt(hex.slice(1, 3), 16),
+            g: Number.parseInt(hex.slice(3, 5), 16),
+            b: Number.parseInt(hex.slice(5, 7), 16)
+        };
+    }
+
+    function recolourLayerImage(layer, appearance) {
+        const mapping = paletteMappingForLayer(layer.id, appearance);
+        if (!mapping) return layer.image;
+        const cacheKey = `${layer.id}:${mapping.key}`;
+        const cached = recolouredLayerCache.get(cacheKey);
+        if (cached) return cached;
+
+        const canvas = document.createElement("canvas");
+        canvas.width = LPC_SHEET_WIDTH;
+        canvas.height = LPC_SHEET_HEIGHT;
+        const paletteContext = canvas.getContext("2d", { willReadFrequently: true });
+        if (!paletteContext) return layer.image;
+        paletteContext.imageSmoothingEnabled = false;
+        paletteContext.drawImage(layer.image, 0, 0);
+
+        try {
+            const imageData = paletteContext.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            const pairs = mapping.source.map((source, index) => ({
+                source: rgbFromHex(source),
+                target: rgbFromHex(mapping.target[index])
+            }));
+
+            for (let offset = 0; offset < pixels.length; offset += 4) {
+                if (pixels[offset + 3] === 0) continue;
+                for (const pair of pairs) {
+                    if (
+                        Math.abs(pixels[offset] - pair.source.r) <= 1 &&
+                        Math.abs(pixels[offset + 1] - pair.source.g) <= 1 &&
+                        Math.abs(pixels[offset + 2] - pair.source.b) <= 1
+                    ) {
+                        pixels[offset] = pair.target.r;
+                        pixels[offset + 1] = pair.target.g;
+                        pixels[offset + 2] = pair.target.b;
+                        break;
+                    }
+                }
+            }
+            paletteContext.putImageData(imageData, 0, 0);
+            recolouredLayerCache.set(cacheKey, canvas);
+            return canvas;
+        } catch (error) {
+            console.warn(`Unable to palette-swap LPC layer ${layer.id}; using its source colours.`, error);
+            return layer.image;
+        }
     }
 
     function entityFromPreviousFrame(id) {
@@ -421,9 +508,8 @@
         const top = Math.round(bounds.top);
 
         for (const layer of layers) {
-            context.filter = colourFilterForLayer(layer.id, appearance);
             context.drawImage(
-                layer.image,
+                recolourLayerImage(layer, appearance),
                 source.x,
                 source.y,
                 source.width,
@@ -434,7 +520,6 @@
                 height
             );
         }
-        context.filter = "none";
         return true;
     }
 
@@ -507,7 +592,8 @@
         layers: LPC_ASSET_DEFINITIONS,
         appearanceFromEntity,
         layerIdsForAppearance,
-        colourFilterForLayer,
+        paletteMappingForLayer,
+        recolourLayerImage,
         directionFromDelta,
         characterAnimationState,
         characterSpriteBounds,
