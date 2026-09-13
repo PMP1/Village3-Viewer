@@ -52,8 +52,13 @@ drawTile = function(tileId, worldX, worldY, project, width = 1, height = 1) {
 };
 
 function fixtureTileId(entity) {
+    // Prop-only ids deliberately do not have tile-atlas images. They make carts
+    // and seats participate in the existing raised-depth pass while the prop
+    // renderer owns their visual sprite bounds and artwork.
+    if (entity.subtype === "cart") return "fixture.cart";
     if (entity.properties?.facilityType === "hearth") return "fixture.hearth";
     if (entity.properties?.resourceType === "bed") return "fixture.bed";
+    if (entity.properties?.resourceType === "dining-seat") return "fixture.dining-seat";
     if (entity.properties?.fixtureType === "dining-table") return "fixture.dining-table";
     if (entity.properties?.fixtureType === "service-counter") return "fixture.service-counter";
     return undefined;
