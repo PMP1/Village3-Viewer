@@ -13,6 +13,7 @@
     // does not change the simulation/navigation grid from one metre per cell.
     const LPC_VISUAL_SIZE_METRES = 2;
     const LPC_GROUND_ANCHOR_Y = 60;
+    const LPC_WALK_FRAME_DURATION_MS = 110;
     const MIN_CHARACTER_SPRITE_PIXELS = 24;
     const MAX_CHARACTER_SPRITE_PIXELS = 128;
 
@@ -26,6 +27,145 @@
     ]);
 
     const facingByCharacter = new Map();
+    let movementProgress = 0;
+    let playbackAnimationTimeMs = 0;
+    let transitionStartedAt;
+    let lastAnimationTimestamp;
+
+    function clampUnit(value) {
+        return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+    }
+
+    function interpolatePosition(from, to, progress) {
+        const amount = clampUnit(progress);
+        return {
+            x: from.x + (to.x - from.x) * amount,
+            y: from.y + (to.y - from.y) * amount
+        };
+    }
+
+    function interpolatedCharacterEntity(entity, nextEntity, progress) {
+        if (entity?.category !== "character" || nextEntity?.category !== "character") return entity;
+        const amount = clampUnit(progress);
+        const from = entity.position;
+        const to = nextEntity.position;
+        return {
+            ...entity,
+            position: interpolatePosition(from, to, amount),
+            __viewerMotion: {
+                from,
+                to,
+                progress: amount
+            }
+        };
+    }
+
+    function interpolatedFrame(frame, nextFrame, progress) {
+        if (!frame || !nextFrame) return frame;
+        return {
+            ...frame,
+            entities: frame.entities.map(entity => {
+                if (entity.category !== "character") return entity;
+                return interpolatedCharacterEntity(entity, entityAtFrame(nextFrame, entity.id), progress);
+            })
+        };
+    }
+
+    // Keep the recording as the source of truth. During drawing only, substitute a
+    // transient frame whose character positions are between two recorded ticks.
+    // All simulation state, inspector data, events, and navigation remain discrete.
+    const renderMapBeforeCharacterInterpolation = renderMap;
+    renderMap = function() {
+        if (!recording || frameIndex >= recording.frames.length - 1) {
+            renderMapBeforeCharacterInterpolation();
+            return;
+        }
+
+        const frame = recording.frames[frameIndex];
+        const nextFrame = recording.frames[frameIndex + 1];
+        const shouldInterpolate = Boolean(playbackTimer) || movementProgress > 0;
+        if (!shouldInterpolate) {
+            renderMapBeforeCharacterInterpolation();
+            return;
+        }
+
+        const displayFrame = interpolatedFrame(frame, nextFrame, movementProgress);
+        recording.frames[frameIndex] = displayFrame;
+        try {
+            renderMapBeforeCharacterInterpolation();
+        } finally {
+            recording.frames[frameIndex] = frame;
+        }
+    };
+
+    const setFrameIndexBeforeCharacterInterpolation = setFrameIndex;
+    setFrameIndex = function(nextIndex) {
+        movementProgress = 0;
+        transitionStartedAt = undefined;
+        lastAnimationTimestamp = undefined;
+        setFrameIndexBeforeCharacterInterpolation(nextIndex);
+    };
+
+    function animationStep(timestamp) {
+        if (!playbackTimer || !recording) return;
+        const duration = playbackDelay();
+        if (transitionStartedAt === undefined) transitionStartedAt = timestamp;
+        if (lastAnimationTimestamp === undefined) lastAnimationTimestamp = timestamp;
+
+        const animationDelta = Math.max(0, timestamp - lastAnimationTimestamp);
+        playbackAnimationTimeMs += animationDelta * speed;
+        lastAnimationTimestamp = timestamp;
+
+        let elapsed = Math.max(0, timestamp - transitionStartedAt);
+        if (elapsed >= duration) {
+            const frameAdvance = Math.max(1, Math.floor(elapsed / duration));
+            frameIndex = Math.min(recording.frames.length - 1, frameIndex + frameAdvance);
+            transitionStartedAt += frameAdvance * duration;
+            elapsed = Math.max(0, timestamp - transitionStartedAt);
+            movementProgress = frameIndex >= recording.frames.length - 1 ? 0 : clampUnit(elapsed / duration);
+            renderFrame();
+
+            if (frameIndex >= recording.frames.length - 1) {
+                stopPlayback();
+                return;
+            }
+        } else {
+            movementProgress = clampUnit(elapsed / duration);
+            renderMap();
+        }
+
+        playbackTimer = requestAnimationFrame(animationStep);
+    }
+
+    scheduleNextFrame = function() {
+        if (playbackTimer) cancelAnimationFrame(playbackTimer);
+        const now = performance.now();
+        transitionStartedAt = now - movementProgress * playbackDelay();
+        lastAnimationTimestamp = now;
+        playbackTimer = requestAnimationFrame(animationStep);
+    };
+
+    startPlayback = function() {
+        if (!recording) return;
+        if (frameIndex >= recording.frames.length - 1) {
+            playbackAnimationTimeMs = 0;
+            setFrameIndex(0);
+        }
+        playButton.textContent = "Pause";
+        playButton.setAttribute("aria-pressed", "true");
+        scheduleNextFrame();
+    };
+
+    stopPlayback = function() {
+        if (playbackTimer) cancelAnimationFrame(playbackTimer);
+        playbackTimer = undefined;
+        transitionStartedAt = undefined;
+        lastAnimationTimestamp = undefined;
+        playButton.textContent = "Play";
+        playButton.setAttribute("aria-pressed", "false");
+        renderMap();
+    };
+
     const spriteLayers = LPC_LAYER_DEFINITIONS.map(definition => {
         const layer = {
             id: definition.id,
@@ -58,17 +198,34 @@
         return undefined;
     }
 
+    function walkAnimationFrame() {
+        return Math.floor(playbackAnimationTimeMs / LPC_WALK_FRAME_DURATION_MS) % LPC_WALK_FRAMES;
+    }
+
     function characterAnimationState(entity) {
+        const motion = entity.__viewerMotion;
+        if (motion) {
+            const dx = motion.to.x - motion.from.x;
+            const dy = motion.to.y - motion.from.y;
+            const moving = Math.abs(dx) > 0.0001 || Math.abs(dy) > 0.0001;
+            const direction = directionFromDelta(dx, dy) ?? facingByCharacter.get(entity.id) ?? "south";
+            facingByCharacter.set(entity.id, direction);
+            return {
+                animation: moving ? "walk" : "idle",
+                direction,
+                frame: moving ? walkAnimationFrame() : 0
+            };
+        }
+
         const previous = entityFromPreviousFrame(entity.id);
         const dx = previous ? entity.position.x - previous.position.x : 0;
         const dy = previous ? entity.position.y - previous.position.y : 0;
-        const moving = Math.abs(dx) > 0.0001 || Math.abs(dy) > 0.0001;
         const direction = directionFromDelta(dx, dy) ?? facingByCharacter.get(entity.id) ?? "south";
         facingByCharacter.set(entity.id, direction);
         return {
-            animation: moving ? "walk" : "idle",
+            animation: "idle",
             direction,
-            frame: moving ? frameIndex % LPC_WALK_FRAMES : 0
+            frame: 0
         };
     }
 
@@ -195,6 +352,7 @@
         sheetHeight: LPC_SHEET_HEIGHT,
         directionRows: LPC_DIRECTION_ROWS,
         walkFrames: LPC_WALK_FRAMES,
+        walkFrameDurationMs: LPC_WALK_FRAME_DURATION_MS,
         visualSizeMetres: LPC_VISUAL_SIZE_METRES,
         groundAnchorY: LPC_GROUND_ANCHOR_Y,
         layers: LPC_LAYER_DEFINITIONS,
@@ -203,6 +361,11 @@
         characterSpriteBounds,
         frameSourceRect,
         drawCharacterLayers,
+        interpolatePosition,
+        interpolatedCharacterEntity,
+        interpolatedFrame,
+        get movementProgress() { return movementProgress; },
+        get playbackAnimationTimeMs() { return playbackAnimationTimeMs; },
         get ready() { return layersReady(); },
         get failed() { return spriteLayers.some(layer => layer.failed); }
     });
