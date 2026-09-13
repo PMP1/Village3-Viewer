@@ -56,7 +56,7 @@ Sources include:
 
 ## Additional appearance layers
 
-The first appearance-customisation slice loads additional genuine LPC walk layers directly from the pinned upstream revision:
+The appearance-customisation viewer loads additional genuine LPC walk layers directly from the pinned upstream revision:
 
 `553ba7562534cbf32e7d9a502660f569d6b26512`
 
@@ -64,6 +64,8 @@ This avoids mutable `master` URLs while the expanded wardrobe is still being sel
 
 - `spritesheets/body/bodies/female/walk.png`
 - `spritesheets/legs/pants/thin/walk.png`
+- `spritesheets/feet/boots/basic/male/walk.png`
+- `spritesheets/feet/boots/basic/thin/walk.png`
 - `spritesheets/torso/clothes/shortsleeve/shortsleeve/female/walk.png`
 - `spritesheets/torso/aprons/apron/male/walk/white.png`
 - `spritesheets/torso/aprons/apron/female/walk/white.png`
@@ -75,5 +77,7 @@ This avoids mutable `master` URLs while the expanded wardrobe is still being sel
 - `spritesheets/hair/bob_side_part/adult/walk.png`
 - `spritesheets/hair/bangslong/adult/walk.png`
 - `spritesheets/hair/bangsshort/adult/walk.png`
+
+The LPC definitions mark the hair, clothing, and footwear artwork as recolourable. Village3 keeps the original PNG layers and applies visual colour filters at draw time; it does not modify or read pixels back from the source artwork.
 
 Universal LPC contains artwork from multiple contributors and licenses. For the exact author, source, and licence metadata of each additional layer, see the corresponding upstream `sheet_definitions` entry and `CREDITS.csv` at the pinned revision. Those upstream attribution and licence notices remain applicable to the layers used by Village3.

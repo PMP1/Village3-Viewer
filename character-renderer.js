@@ -19,7 +19,8 @@
 
     // Additional appearance layers are pinned to one upstream Universal LPC
     // revision. Direct image compositing remains safe here because the viewer never
-    // reads pixels back from the canvas.
+    // reads pixels back from the canvas. Palette-style colour filters are applied
+    // only while drawing individual visual layers.
     const LPC_UPSTREAM_COMMIT = "553ba7562534cbf32e7d9a502660f569d6b26512";
     const LPC_UPSTREAM_ROOT = `https://raw.githubusercontent.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator/${LPC_UPSTREAM_COMMIT}/spritesheets/`;
     const upstream = path => `${LPC_UPSTREAM_ROOT}${path}`;
@@ -29,6 +30,8 @@
         Object.freeze({ id: "body-female", path: upstream("body/bodies/female/walk.png") }),
         Object.freeze({ id: "pants-male", path: "./assets/characters/lpc/pants-male-walk.png" }),
         Object.freeze({ id: "pants-female", path: upstream("legs/pants/thin/walk.png") }),
+        Object.freeze({ id: "boots-male", path: upstream("feet/boots/basic/male/walk.png") }),
+        Object.freeze({ id: "boots-female", path: upstream("feet/boots/basic/thin/walk.png") }),
         Object.freeze({ id: "shirt-male", path: "./assets/characters/lpc/shirt-male-walk.png" }),
         Object.freeze({ id: "shirt-female", path: upstream("torso/clothes/shortsleeve/shortsleeve/female/walk.png") }),
         Object.freeze({ id: "apron-male", path: upstream("torso/aprons/apron/male/walk/white.png") }),
@@ -44,6 +47,21 @@
         Object.freeze({ id: "hair-short-bangs", path: upstream("hair/bangsshort/adult/walk.png") })
     ]);
 
+    const LPC_COLOR_FILTERS = Object.freeze({
+        black: "grayscale(1) brightness(0.32)",
+        "dark-brown": "sepia(1) saturate(2.2) hue-rotate(345deg) brightness(0.5)",
+        brown: "sepia(1) saturate(1.7) hue-rotate(350deg) brightness(0.72)",
+        auburn: "sepia(1) saturate(3.4) hue-rotate(320deg) brightness(0.72)",
+        blonde: "sepia(1) saturate(1.4) hue-rotate(355deg) brightness(1.18)",
+        grey: "grayscale(1) brightness(0.85)",
+        cream: "sepia(0.35) saturate(0.8) brightness(1.03)",
+        blue: "sepia(1) saturate(3.2) hue-rotate(165deg) brightness(0.82)",
+        green: "sepia(1) saturate(2.8) hue-rotate(75deg) brightness(0.76)",
+        red: "sepia(1) saturate(3.6) hue-rotate(320deg) brightness(0.82)",
+        ochre: "sepia(1) saturate(2.4) hue-rotate(350deg) brightness(0.92)",
+        charcoal: "grayscale(1) brightness(0.5)"
+    });
+
     const VALID_BODY_TYPES = new Set(["male", "female"]);
     const VALID_HAIR_STYLES = new Set([
         "none",
@@ -54,13 +72,23 @@
         "long-bangs",
         "short-bangs"
     ]);
+    const VALID_HAIR_COLORS = new Set(["black", "dark-brown", "brown", "auburn", "blonde", "grey"]);
+    const VALID_CLOTHING_COLORS = new Set(["cream", "blue", "green", "red", "ochre", "brown", "charcoal"]);
+    const VALID_FOOTWEAR = new Set(["boots"]);
+    const VALID_FOOTWEAR_COLORS = new Set(["brown", "dark-brown", "black"]);
     const VALID_OUTERWEAR = new Set(["none", "apron", "vest"]);
     const DEFAULT_APPEARANCE = Object.freeze({
         bodyType: "male",
         hairStyle: "none",
+        hairColor: "brown",
         lowerBody: "pants",
+        lowerBodyColor: "charcoal",
         torso: "shirt",
-        outerwear: "none"
+        torsoColor: "cream",
+        outerwear: "none",
+        outerwearColor: "brown",
+        footwear: "boots",
+        footwearColor: "dark-brown"
     });
 
     const facingByCharacter = new Map();
@@ -233,18 +261,38 @@
         const hairStyle = VALID_HAIR_STYLES.has(properties.appearanceHairStyle)
             ? properties.appearanceHairStyle
             : DEFAULT_APPEARANCE.hairStyle;
+        const hairColor = VALID_HAIR_COLORS.has(properties.appearanceHairColor)
+            ? properties.appearanceHairColor
+            : DEFAULT_APPEARANCE.hairColor;
         const outerwear = VALID_OUTERWEAR.has(properties.appearanceOuterwear)
             ? properties.appearanceOuterwear
             : DEFAULT_APPEARANCE.outerwear;
+        const footwear = VALID_FOOTWEAR.has(properties.appearanceFootwear)
+            ? properties.appearanceFootwear
+            : DEFAULT_APPEARANCE.footwear;
 
         return {
             bodyType,
             hairStyle,
+            hairColor,
             lowerBody: properties.appearanceLowerBody === "pants" ? "pants" : DEFAULT_APPEARANCE.lowerBody,
+            lowerBodyColor: VALID_CLOTHING_COLORS.has(properties.appearanceLowerBodyColor)
+                ? properties.appearanceLowerBodyColor
+                : DEFAULT_APPEARANCE.lowerBodyColor,
             torso: properties.appearanceTorso === "shirt" ? "shirt" : DEFAULT_APPEARANCE.torso,
+            torsoColor: VALID_CLOTHING_COLORS.has(properties.appearanceTorsoColor)
+                ? properties.appearanceTorsoColor
+                : DEFAULT_APPEARANCE.torsoColor,
             // The current LPC vest layer is male-body-specific. Invalid combinations
             // degrade to the base outfit rather than breaking the whole character.
-            outerwear: outerwear === "vest" && bodyType !== "male" ? "none" : outerwear
+            outerwear: outerwear === "vest" && bodyType !== "male" ? "none" : outerwear,
+            outerwearColor: VALID_CLOTHING_COLORS.has(properties.appearanceOuterwearColor)
+                ? properties.appearanceOuterwearColor
+                : DEFAULT_APPEARANCE.outerwearColor,
+            footwear,
+            footwearColor: VALID_FOOTWEAR_COLORS.has(properties.appearanceFootwearColor)
+                ? properties.appearanceFootwearColor
+                : DEFAULT_APPEARANCE.footwearColor
         };
     }
 
@@ -252,6 +300,7 @@
         const ids = [
             `body-${appearance.bodyType}`,
             `pants-${appearance.bodyType}`,
+            `${appearance.footwear}-${appearance.bodyType}`,
             `shirt-${appearance.bodyType}`
         ];
         if (appearance.outerwear !== "none") {
@@ -264,10 +313,20 @@
         return ids;
     }
 
-    function selectedSpriteLayers(entity) {
-        const ids = layerIdsForAppearance(appearanceFromEntity(entity));
+    function selectedSpriteLayers(entity, appearance = appearanceFromEntity(entity)) {
+        const ids = layerIdsForAppearance(appearance);
         const layers = ids.map(id => spriteLayerById.get(id));
         return layers.every(Boolean) ? layers : undefined;
+    }
+
+    function colourFilterForLayer(layerId, appearance) {
+        let colour;
+        if (layerId.startsWith("hair-")) colour = appearance.hairColor;
+        else if (layerId.startsWith("pants-")) colour = appearance.lowerBodyColor;
+        else if (layerId.startsWith("shirt-")) colour = appearance.torsoColor;
+        else if (layerId.startsWith("apron-") || layerId.startsWith("vest-")) colour = appearance.outerwearColor;
+        else if (layerId.startsWith("boots-")) colour = appearance.footwearColor;
+        return colour ? LPC_COLOR_FILTERS[colour] ?? "none" : "none";
     }
 
     function entityFromPreviousFrame(id) {
@@ -352,7 +411,8 @@
     }
 
     function drawCharacterLayers(entity, state, bounds) {
-        const layers = selectedSpriteLayers(entity);
+        const appearance = appearanceFromEntity(entity);
+        const layers = selectedSpriteLayers(entity, appearance);
         if (!layers || !layers.every(layer => layer.ready)) return false;
         const source = frameSourceRect(state);
         const width = Math.max(1, Math.round(bounds.width));
@@ -361,6 +421,7 @@
         const top = Math.round(bounds.top);
 
         for (const layer of layers) {
+            context.filter = colourFilterForLayer(layer.id, appearance);
             context.drawImage(
                 layer.image,
                 source.x,
@@ -373,6 +434,7 @@
                 height
             );
         }
+        context.filter = "none";
         return true;
     }
 
@@ -445,6 +507,7 @@
         layers: LPC_ASSET_DEFINITIONS,
         appearanceFromEntity,
         layerIdsForAppearance,
+        colourFilterForLayer,
         directionFromDelta,
         characterAnimationState,
         characterSpriteBounds,
