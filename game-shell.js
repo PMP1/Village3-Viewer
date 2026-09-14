@@ -14,6 +14,16 @@
         .view-mode-group { display: flex; gap: 6px; margin-left: auto; }
         .view-mode-group button { min-height: 40px; }
         .mobile-game-nav { display: none; }
+        .entity-contents { margin-top: 14px; padding-top: 12px; border-top: 1px solid #30363d; }
+        .entity-contents h3 { margin: 0 0 7px; font-size: 14px; }
+        .entity-contents-summary { margin-bottom: 9px; color: #c9d1d9; font-size: 12px; line-height: 1.4; }
+        .entity-content-list { display: grid; gap: 6px; }
+        .entity-content-row { padding: 7px 8px; border: 1px solid #30363d; border-radius: 7px; background: #161b22; }
+        .entity-content-main { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .entity-content-name { font-size: 13px; font-weight: 650; }
+        .entity-content-quantity { flex: 0 0 auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+        .entity-content-meta { margin-top: 2px; color: #8b949e; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+        .entity-content-sale { color: #3fb950; font-weight: 650; }
 
         body[data-view-mode="game"] .timeline-row,
         body[data-view-mode="game"] #restart,
@@ -164,7 +174,7 @@
         }
 
         @media (max-width: 520px) {
-            body[data-view-mode="game"] .speed-group button[data-speed="5"] { display: none; }
+            body[data-view-mode="game"] .speed-group button[data-speed="20"] { display: none; }
             body[data-view-mode="game"] .view-mode-group button { padding: 0 7px; font-size: 12px; }
         }
     `;
@@ -210,6 +220,108 @@
         mobileNav.append(button);
     }
     document.body.append(mobileNav);
+
+    function contentLabel(id) {
+        const frame = recording?.frames?.[frameIndex];
+        const entity = frame ? entityAtFrame(frame, id) : undefined;
+        return entity?.label ?? humanize(id);
+    }
+
+    function contentQuantity(content) {
+        if (content.kind === "liquid" && Number.isFinite(content.capacity)) {
+            return `${formatNumber(content.quantity)} / ${formatNumber(content.capacity)}`;
+        }
+        return `×${formatNumber(content.quantity)}`;
+    }
+
+    function contentSummary(contents) {
+        const grouped = new Map();
+        for (const content of contents) {
+            const key = `${content.kind}:${content.type}`;
+            const existing = grouped.get(key) ?? {
+                kind: content.kind,
+                type: content.type,
+                quantity: 0,
+                capacity: 0
+            };
+            existing.quantity += content.quantity;
+            if (content.kind === "liquid" && Number.isFinite(content.capacity)) {
+                existing.capacity += content.capacity;
+            }
+            grouped.set(key, existing);
+        }
+        return [...grouped.values()]
+            .sort((first, second) => first.type.localeCompare(second.type))
+            .map(content => content.kind === "liquid"
+                ? `${humanize(content.type)} ${formatNumber(content.quantity)}/${formatNumber(content.capacity)}`
+                : `${humanize(content.type)} ×${formatNumber(content.quantity)}`)
+            .join(" · ");
+    }
+
+    function appendEntityContents() {
+        const entity = selectedEntity();
+        if (!entity || !Array.isArray(entity.contents)) return;
+
+        const section = document.createElement("section");
+        section.className = "entity-contents";
+        const heading = document.createElement("h3");
+        heading.textContent = "Contents";
+        section.append(heading);
+
+        if (entity.contents.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "empty";
+            empty.textContent = "No stored stock recorded here.";
+            section.append(empty);
+            inspectorElement.append(section);
+            return;
+        }
+
+        const summary = document.createElement("div");
+        summary.className = "entity-contents-summary";
+        summary.textContent = contentSummary(entity.contents);
+        section.append(summary);
+
+        const list = document.createElement("div");
+        list.className = "entity-content-list";
+        for (const content of entity.contents) {
+            const row = document.createElement("div");
+            row.className = "entity-content-row";
+
+            const main = document.createElement("div");
+            main.className = "entity-content-main";
+            const name = document.createElement("div");
+            name.className = "entity-content-name";
+            name.textContent = humanize(content.type);
+            const quantity = document.createElement("div");
+            quantity.className = "entity-content-quantity";
+            quantity.textContent = contentQuantity(content);
+            main.append(name, quantity);
+
+            const meta = document.createElement("div");
+            meta.className = "entity-content-meta";
+            const details = [`Location: ${contentLabel(content.locationId)}`];
+            if (content.ownerId) details.push(`Owner: ${contentLabel(content.ownerId)}`);
+            meta.textContent = details.join(" · ");
+            if (content.forSale) {
+                const sale = document.createElement("span");
+                sale.className = "entity-content-sale";
+                sale.textContent = " · For sale";
+                meta.append(sale);
+            }
+
+            row.append(main, meta);
+            list.append(row);
+        }
+        section.append(list);
+        inspectorElement.append(section);
+    }
+
+    const originalRenderInspector = renderInspector;
+    renderInspector = function renderInspectorWithEntityContents() {
+        originalRenderInspector();
+        appendEntityContents();
+    };
 
     function refreshButtons() {
         const mode = document.body.dataset.viewMode ?? "game";
