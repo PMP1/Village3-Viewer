@@ -26,6 +26,11 @@
             : rounded.toFixed(decimals).replace(/\.0+$/, "");
     }
 
+    function formatMoney(value) {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? `£${compactNumber(numeric, 1)}` : "—";
+    }
+
     // Keep simulation precision intact but present compact numbers throughout the viewer.
     formatNumber = value => compactNumber(value, 1);
 
@@ -158,6 +163,7 @@
             name.className = "person-name";
             name.textContent = character.label ?? character.id;
 
+            const money = detailLine("Money", formatMoney(character.properties?.money), "—");
             const stats = document.createElement("span");
             stats.className = "person-stats";
             for (const definition of statDefinitions) stats.append(statRow(definition, character));
@@ -196,7 +202,7 @@
                 "No decision yet"
             );
 
-            details.append(name, stats, goal, reason, plan, subgoal, next, action, decision);
+            details.append(name, money, stats, goal, reason, plan, subgoal, next, action, decision);
             card.append(avatar, details);
             fragment.append(card);
         }
