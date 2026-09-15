@@ -68,13 +68,21 @@ handlePointerMove = function(event) {
 canvas.addEventListener("pointermove", handlePointerMove);
 
 function isGroundOnlyMapFeature(entity) {
-    return entity.category === "map-feature" && (entity.subtype === "road" || entity.subtype === "market-square");
+    return entity.category === "map-feature" && (
+        entity.subtype === "road" ||
+        entity.subtype === "market-square" ||
+        entity.subtype === "cart-pitch"
+    );
 }
 
 const baseMapFeatureSelectAtScreenPoint = selectAtScreenPoint;
 selectAtScreenPoint = function selectAtScreenPointWithoutGroundFeatures(x, y) {
     const allProjectedEntities = projectedEntities;
-    projectedEntities = allProjectedEntities.filter(item => !isGroundOnlyMapFeature(item.entity));
+    const selectableEntities = allProjectedEntities.filter(item => !isGroundOnlyMapFeature(item.entity));
+    projectedEntities = [
+        ...selectableEntities.filter(item => item.entity.category !== "map-feature"),
+        ...selectableEntities.filter(item => item.entity.category === "map-feature")
+    ];
     try {
         baseMapFeatureSelectAtScreenPoint(x, y);
     } finally {
