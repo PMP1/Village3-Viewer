@@ -140,15 +140,70 @@ entityScreenBounds = function(entity, project) {
     return baseEntityScreenBounds(entity, project);
 };
 
+function mapFeaturePointInPolygon(point, polygon) {
+    let inside = false;
+    for (let current = 0, previous = polygon.length - 1; current < polygon.length; previous = current++) {
+        const a = polygon[current];
+        const b = polygon[previous];
+        const crosses = (a.y > point.y) !== (b.y > point.y) &&
+            point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x;
+        if (crosses) inside = !inside;
+    }
+    return inside;
+}
+
+function drawFieldTiles(entity, project, selected) {
+    const points = entity.geometry.points;
+    const xs = points.map(point => point.x);
+    const ys = points.map(point => point.y);
+    const minX = Math.floor(Math.min(...xs));
+    const maxX = Math.ceil(Math.max(...xs)) - 1;
+    const minY = Math.floor(Math.min(...ys));
+    const maxY = Math.ceil(Math.max(...ys)) - 1;
+
+    for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+            if (!mapFeaturePointInPolygon({ x: x + 0.5, y: y + 0.5 }, points)) continue;
+            const first = project({ x, y });
+            const second = project({ x: x + 1, y: y + 1 });
+            const left = Math.min(first.x, second.x);
+            const top = Math.min(first.y, second.y);
+            const width = Math.max(1, Math.abs(second.x - first.x));
+            const height = Math.max(1, Math.abs(second.y - first.y));
+            const stripAlternate = Math.abs(x) % 2 === 0;
+            context.fillStyle = stripAlternate
+                ? "rgba(124, 87, 48, 0.76)"
+                : "rgba(140, 98, 53, 0.76)";
+            context.fillRect(left, top, width + 0.5, height + 0.5);
+            if (project.scale >= 5) {
+                context.strokeStyle = "rgba(74, 50, 29, 0.30)";
+                context.lineWidth = 1;
+                context.strokeRect(left, top, width, height);
+            }
+        }
+    }
+
+    const screenPoints = points.map(project);
+    context.beginPath();
+    context.moveTo(screenPoints[0].x, screenPoints[0].y);
+    for (const point of screenPoints.slice(1)) context.lineTo(point.x, point.y);
+    context.closePath();
+    context.strokeStyle = selected ? "#f2cc60" : "rgba(174, 131, 76, 0.9)";
+    context.lineWidth = selected ? 2.5 : 1.2;
+    context.stroke();
+}
+
 function drawMapFeature(entity, project) {
     const geometry = entity.geometry;
     const selected = !isGroundOnlyMapFeature(entity) && entity.id === selectedEntityId;
     context.save();
 
     if (geometry?.type === "polygon" && geometry.points.length > 0) {
-        // Market ground is now rendered as one-metre dirt tiles by tile-renderer.
-        // Keep this path only for forests and selection highlighting.
-        if (entity.subtype !== "market-square" || selected) {
+        if (entity.subtype === "field") {
+            // Agricultural land is represented by the same one-metre cells used by
+            // the simulation rather than one broad decorative polygon.
+            drawFieldTiles(entity, project, selected);
+        } else if (entity.subtype !== "market-square" || selected) {
             const points = geometry.points.map(project);
             context.beginPath();
             context.moveTo(points[0].x, points[0].y);
