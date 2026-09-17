@@ -1,8 +1,24 @@
 const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
+const FIELD_TILE_IDS = Object.freeze({
+    bare: "agriculture.field.bare",
+    ploughed: "agriculture.field.ploughed",
+    sown: "agriculture.field.sown",
+    growing: "agriculture.field.growing",
+    ripe: "agriculture.field.ripe",
+    harvested: "agriculture.field.harvested",
+    fallow: "agriculture.field.fallow"
+});
 const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.grass, TILE_PNG_DIRECTORY + "grass.png"],
     [TILE_IDS.grassAlt, TILE_PNG_DIRECTORY + "grass_alt.png"],
     [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],
+    [FIELD_TILE_IDS.bare, TILE_PNG_DIRECTORY + "field_bare.png"],
+    [FIELD_TILE_IDS.ploughed, TILE_PNG_DIRECTORY + "field_ploughed.png"],
+    [FIELD_TILE_IDS.sown, TILE_PNG_DIRECTORY + "field_sown.png"],
+    [FIELD_TILE_IDS.growing, TILE_PNG_DIRECTORY + "field_growing.png"],
+    [FIELD_TILE_IDS.ripe, TILE_PNG_DIRECTORY + "field_ripe.png"],
+    [FIELD_TILE_IDS.harvested, TILE_PNG_DIRECTORY + "field_harvested.png"],
+    [FIELD_TILE_IDS.fallow, TILE_PNG_DIRECTORY + "field_fallow.png"],
     ["fixture.hearth", TILE_PNG_DIRECTORY + "hearth.png"],
     ["fixture.bed", TILE_PNG_DIRECTORY + "bed.png"],
     ["fixture.dining-table", TILE_PNG_DIRECTORY + "dining_table.png"],
@@ -112,9 +128,58 @@ drawEntity = function(entity, point, project) {
     drawEntityBeforeAtlas(entity, point, project);
 };
 
+function fieldTileId(entity) {
+    const state = entity.properties?.fieldTileState;
+    return typeof state === "string" && FIELD_TILE_IDS[state]
+        ? FIELD_TILE_IDS[state]
+        : FIELD_TILE_IDS.bare;
+}
+
+// Some focused viewer harnesses intentionally load the tile atlas without the
+// map-feature renderer. Only decorate field drawing when that optional layer is
+// present; ordinary tile and fixture atlas behaviour remains independently usable.
+if (typeof drawFieldTiles === "function" && typeof mapFeaturePointInPolygon === "function") {
+    const drawFieldTilesBeforeAtlas = drawFieldTiles;
+    drawFieldTiles = function drawFieldTilesFromAtlas(entity, project, selected) {
+        const tileId = fieldTileId(entity);
+        const image = tileImages.get(tileId);
+        if (!image || !tileReady.has(tileId)) {
+            drawFieldTilesBeforeAtlas(entity, project, selected);
+            return;
+        }
+
+        const points = entity.geometry?.points ?? [];
+        if (points.length === 0) return;
+        const xs = points.map(point => point.x);
+        const ys = points.map(point => point.y);
+        const minX = Math.floor(Math.min(...xs));
+        const maxX = Math.ceil(Math.max(...xs)) - 1;
+        const minY = Math.floor(Math.min(...ys));
+        const maxY = Math.ceil(Math.max(...ys)) - 1;
+
+        context.imageSmoothingEnabled = false;
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                if (!mapFeaturePointInPolygon({ x: x + 0.5, y: y + 0.5 }, points)) continue;
+                drawAtlasTile(tileId, x, y, project);
+            }
+        }
+
+        const screenPoints = points.map(project);
+        context.beginPath();
+        context.moveTo(screenPoints[0].x, screenPoints[0].y);
+        for (const point of screenPoints.slice(1)) context.lineTo(point.x, point.y);
+        context.closePath();
+        context.strokeStyle = selected ? "#f2cc60" : "rgba(174, 131, 76, 0.9)";
+        context.lineWidth = selected ? 2.5 : 1.2;
+        context.stroke();
+    };
+}
+
 window.VillageTileAtlas = Object.freeze({
     source: TILE_PNG_DIRECTORY,
     sources: Object.freeze(Object.fromEntries(TILE_IMAGE_PATHS)),
+    fieldTileIds: FIELD_TILE_IDS,
     tileCount: TILE_IMAGE_PATHS.size,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },
     get failed() { return tileFailed.size > 0; }
