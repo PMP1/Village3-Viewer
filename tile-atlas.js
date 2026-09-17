@@ -145,8 +145,20 @@ function fieldTileFallbackState(entity) {
 
 function fieldTileStateLookup(entity) {
     const states = new Map();
+
+    // Older recordings stored one entry per exceptional metre. Retain support so
+    // saved/debug recordings remain viewable after the compact run format ships.
     for (const tile of entity.agriculture?.tileStates ?? []) {
         states.set(`${tile.x},${tile.y}`, tile.state);
+    }
+
+    const orientation = entity.agriculture?.runOrientation ?? "north-south";
+    for (const run of entity.agriculture?.tileRuns ?? []) {
+        for (let offset = 0; offset < run.length; offset++) {
+            const x = run.x + (orientation === "east-west" ? offset : 0);
+            const y = run.y + (orientation === "north-south" ? offset : 0);
+            states.set(`${x},${y}`, run.state);
+        }
     }
     return states;
 }
