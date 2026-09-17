@@ -128,11 +128,27 @@ drawEntity = function(entity, point, project) {
     drawEntityBeforeAtlas(entity, point, project);
 };
 
-function fieldTileId(entity) {
-    const state = entity.properties?.fieldTileState;
+function fieldTileIdForState(state) {
     return typeof state === "string" && FIELD_TILE_IDS[state]
         ? FIELD_TILE_IDS[state]
         : FIELD_TILE_IDS.bare;
+}
+
+function fieldTileFallbackState(entity) {
+    if (typeof entity.agriculture?.defaultTileState === "string") {
+        return entity.agriculture.defaultTileState;
+    }
+    return typeof entity.properties?.fieldTileState === "string"
+        ? entity.properties.fieldTileState
+        : "bare";
+}
+
+function fieldTileStateLookup(entity) {
+    const states = new Map();
+    for (const tile of entity.agriculture?.tileStates ?? []) {
+        states.set(`${tile.x},${tile.y}`, tile.state);
+    }
+    return states;
 }
 
 // Some focused viewer harnesses intentionally load the tile atlas without the
@@ -141,15 +157,19 @@ function fieldTileId(entity) {
 if (typeof drawFieldTiles === "function" && typeof mapFeaturePointInPolygon === "function") {
     const drawFieldTilesBeforeAtlas = drawFieldTiles;
     drawFieldTiles = function drawFieldTilesFromAtlas(entity, project, selected) {
-        const tileId = fieldTileId(entity);
-        const image = tileImages.get(tileId);
-        if (!image || !tileReady.has(tileId)) {
-            drawFieldTilesBeforeAtlas(entity, project, selected);
-            return;
-        }
-
         const points = entity.geometry?.points ?? [];
         if (points.length === 0) return;
+
+        const stateLookup = fieldTileStateLookup(entity);
+        const fallbackState = fieldTileFallbackState(entity);
+        const requiredTileIds = new Set([
+            fieldTileIdForState(fallbackState),
+            ...[...stateLookup.values()].map(fieldTileIdForState)
+        ]);
+        if ([...requiredTileIds].some(tileId => !tileReady.has(tileId))) {
+            drawFieldTilesBeforeAtlas(entity, project, selected);
+        }
+
         const xs = points.map(point => point.x);
         const ys = points.map(point => point.y);
         const minX = Math.floor(Math.min(...xs));
@@ -161,7 +181,8 @@ if (typeof drawFieldTiles === "function" && typeof mapFeaturePointInPolygon === 
         for (let y = minY; y <= maxY; y++) {
             for (let x = minX; x <= maxX; x++) {
                 if (!mapFeaturePointInPolygon({ x: x + 0.5, y: y + 0.5 }, points)) continue;
-                drawAtlasTile(tileId, x, y, project);
+                const state = stateLookup.get(`${x},${y}`) ?? fallbackState;
+                drawAtlasTile(fieldTileIdForState(state), x, y, project);
             }
         }
 
