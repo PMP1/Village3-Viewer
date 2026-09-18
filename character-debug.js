@@ -54,7 +54,7 @@
                 });
             }
         }
-        characterMetadataInitialised = true;
+        characterMetadataInitialised = characterMetadata.size > 0;
     }
 
     function characterForId(id) {
