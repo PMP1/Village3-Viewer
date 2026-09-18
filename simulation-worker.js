@@ -1,5 +1,153 @@
 "use strict";
 (() => {
+  // src/debug/SimulationDebugRecorder.ts
+  var SIMULATION_DEBUG_SCHEMA_VERSION = 1;
+  var MINUTES_PER_DAY = 24 * 60;
+  var DEFAULT_SNAPSHOT_INTERVAL = 25;
+  var SimulationDebugRecorder = class {
+    constructor(options = {}) {
+      this.snapshots = [];
+      this.snapshotInterval = options.snapshotInterval ?? DEFAULT_SNAPSHOT_INTERVAL;
+      if (!Number.isInteger(this.snapshotInterval) || this.snapshotInterval <= 0) {
+        throw new Error("Debug snapshot interval must be a positive integer.");
+      }
+    }
+    start(world2) {
+      if (this.snapshots.length > 0) {
+        throw new Error("Debug recorder has already been started.");
+      }
+      this.capture(world2);
+    }
+    afterTick(world2) {
+      if (world2.time % this.snapshotInterval === 0) {
+        this.capture(world2);
+      }
+    }
+    finish(world2, events, description) {
+      if (this.snapshots.length === 0) this.capture(world2);
+      if (this.snapshots[this.snapshots.length - 1]?.tick !== world2.time) {
+        this.capture(world2);
+      }
+      return {
+        metadata: {
+          schemaVersion: SIMULATION_DEBUG_SCHEMA_VERSION,
+          title: description.title,
+          scenario: description.scenario,
+          duration: description.duration,
+          sourceCommit: description.sourceCommit ?? null,
+          packageVersion: description.packageVersion ?? null,
+          seed: description.seed ?? null,
+          config: {
+            startMinuteOfDay: world2.startMinuteOfDay,
+            snapshotInterval: this.snapshotInterval
+          }
+        },
+        events: events.map((event) => this.clone(event)),
+        snapshots: this.snapshots.map((snapshot) => this.clone(snapshot))
+      };
+    }
+    capture(world2) {
+      this.snapshots.push({
+        schemaVersion: SIMULATION_DEBUG_SCHEMA_VERSION,
+        tick: world2.time,
+        time: this.time(world2),
+        characters: world2.characters.map((character) => this.characterSnapshot(character, world2)),
+        actionPoints: world2.getActionPoints().map((point) => ({
+          id: point.id,
+          position: { ...point.position },
+          capacity: point.capacity,
+          occupancyMode: point.occupancyMode,
+          occupantIds: world2.characters.filter((character) => world2.resourceUsage.isClaimedBy(point.id, character.id)).map((character) => character.id)
+        }))
+      });
+    }
+    characterSnapshot(character, world2) {
+      const room5 = world2.getRoomAtPosition(character.position);
+      const intent = character.currentIntent;
+      const action = character.currentAction;
+      return {
+        id: character.id,
+        name: character.name,
+        position: { ...character.position },
+        ...room5 ? { roomId: room5.id, placeId: room5.placeId } : {},
+        needs: {
+          hunger: character.hunger,
+          fullness: character.fullness,
+          thirst: character.thirst,
+          tiredness: character.tiredness,
+          socialNeed: character.socialNeed,
+          digestion: character.digestionSummary ?? null,
+          digestionStacks: character.digestionStackCount
+        },
+        currentIntent: intent ? {
+          id: intent.id,
+          source: this.clone(intent.source),
+          goal: this.goalSnapshot(intent.goal),
+          priority: intent.priority
+        } : null,
+        currentPlan: character.currentPlan ? this.planSnapshot(character.currentPlan) : null,
+        currentAction: action ? {
+          id: action.id,
+          type: action.type,
+          startedAt: action.startedAt,
+          expectedDuration: action.expectedDuration,
+          expectedAt: action.expectedAt,
+          tolerance: action.tolerance,
+          expiresAt: action.expiresAt,
+          status: action.status,
+          interruptionPolicy: action.interruptionPolicy ?? null,
+          completionDisposition: action.completionDisposition ?? null
+        } : null,
+        movementTarget: character.movementTarget ? { ...character.movementTarget } : null,
+        socialInstruction: character.socialInstruction ? this.clone(character.socialInstruction) : null,
+        inventory: character.physical.getAll().map((possession) => ({
+          item: this.clone(possession.item),
+          location: this.clone(possession.location)
+        })),
+        money: character.money,
+        knowledgeRevision: character.knowledgeRevision,
+        knowledge: character.knowledge.map((knowledge) => this.clone(knowledge)),
+        occupiedActionPointIds: world2.getOccupiedActionPointIds(character.id)
+      };
+    }
+    planSnapshot(plan) {
+      return {
+        planId: plan.definition?.id ?? null,
+        planName: plan.definition?.name ?? null,
+        planKind: plan.definition?.kind ?? "achievement",
+        ...plan.goal ? { goal: this.goalSnapshot(plan.goal) } : {},
+        satisfied: plan.satisfied,
+        completed: plan.completed,
+        failed: plan.failed,
+        totalDuration: plan.totalDuration,
+        totalCost: plan.totalCost,
+        totalRisk: plan.totalRisk,
+        ...plan.target ? { target: this.clone(plan.target) } : {},
+        prerequisites: plan.prerequisites.map((prerequisite) => this.planSnapshot(prerequisite))
+      };
+    }
+    goalSnapshot(goal) {
+      return {
+        type: goal.type,
+        ...goal.parameters ? { parameters: this.clone(goal.parameters) } : {}
+      };
+    }
+    time(world2) {
+      const absoluteMinute = world2.startMinuteOfDay + world2.time;
+      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY) + 1;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY;
+      return {
+        day,
+        hour: Math.floor(minuteOfDay / 60),
+        minute: minuteOfDay % 60,
+        minuteOfDay
+      };
+    }
+    clone(value) {
+      return structuredClone(value);
+    }
+  };
+
   // src/logging/SimulationLog.ts
   var LEVEL_PRIORITY = {
     event: 0,
@@ -366,12 +514,12 @@
   };
 
   // src/agriculture/CropCatalog.ts
-  var MINUTES_PER_DAY = 24 * 60;
+  var MINUTES_PER_DAY2 = 24 * 60;
   var DEFAULT_CROP_DEFINITIONS = [
     {
       kind: "wheat",
       preferredRotation: "winter-crop",
-      growthMinutes: 65 * MINUTES_PER_DAY,
+      growthMinutes: 65 * MINUTES_PER_DAY2,
       seedItemType: "wheat-seed",
       harvestedItemType: "wheat-grain",
       yieldPerTile: 1
@@ -379,7 +527,7 @@
     {
       kind: "rye",
       preferredRotation: "winter-crop",
-      growthMinutes: 60 * MINUTES_PER_DAY,
+      growthMinutes: 60 * MINUTES_PER_DAY2,
       seedItemType: "rye-seed",
       harvestedItemType: "rye-grain",
       yieldPerTile: 1
@@ -387,7 +535,7 @@
     {
       kind: "barley",
       preferredRotation: "spring-crop",
-      growthMinutes: 40 * MINUTES_PER_DAY,
+      growthMinutes: 40 * MINUTES_PER_DAY2,
       seedItemType: "barley-seed",
       harvestedItemType: "barley-grain",
       yieldPerTile: 1
@@ -395,7 +543,7 @@
     {
       kind: "oats",
       preferredRotation: "spring-crop",
-      growthMinutes: 42 * MINUTES_PER_DAY,
+      growthMinutes: 42 * MINUTES_PER_DAY2,
       seedItemType: "oat-seed",
       harvestedItemType: "oat-grain",
       yieldPerTile: 1
@@ -403,7 +551,7 @@
     {
       kind: "peas",
       preferredRotation: "spring-crop",
-      growthMinutes: 35 * MINUTES_PER_DAY,
+      growthMinutes: 35 * MINUTES_PER_DAY2,
       seedItemType: "pea-seed",
       harvestedItemType: "peas",
       harvestedFoodKind: "vegetable",
@@ -412,7 +560,7 @@
     {
       kind: "beans",
       preferredRotation: "spring-crop",
-      growthMinutes: 38 * MINUTES_PER_DAY,
+      growthMinutes: 38 * MINUTES_PER_DAY2,
       seedItemType: "bean-seed",
       harvestedItemType: "beans",
       harvestedFoodKind: "vegetable",
@@ -421,7 +569,7 @@
     {
       kind: "carrot",
       preferredRotation: "spring-crop",
-      growthMinutes: 32 * MINUTES_PER_DAY,
+      growthMinutes: 32 * MINUTES_PER_DAY2,
       seedItemType: "carrot-seed",
       harvestedItemType: "carrot",
       harvestedFoodKind: "vegetable",
@@ -435,7 +583,7 @@
   }
 
   // src/scenarios/DefaultAgriculturalYear.ts
-  var MINUTES_PER_DAY2 = 24 * 60;
+  var MINUTES_PER_DAY3 = 24 * 60;
   var DEFAULT_AGRICULTURAL_START_SEASON = "autumn";
   var WINTER_CROP_SEQUENCE = ["wheat", "rye"];
   var SPRING_CROP_SEQUENCE = ["barley", "oats", "peas", "beans", "carrot"];
@@ -458,7 +606,7 @@
       if (strip.index % 4 !== 0) continue;
       for (const tile of world2.agriculture.tilesForStrip(strip.id)) {
         if (world2.agriculture.canPloughTile(tile.x, tile.y)) {
-          world2.agriculture.ploughTile(tile.x, tile.y, world2.time - MINUTES_PER_DAY2);
+          world2.agriculture.ploughTile(tile.x, tile.y, world2.time - MINUTES_PER_DAY3);
         }
       }
     }
@@ -466,7 +614,7 @@
       const crop = plannedCropForStrip("spring-crop", strip.index);
       const definition = defaultCropDefinition(crop);
       const ripe = strip.index % 3 !== 2;
-      const plantedAt = ripe ? world2.time - definition.growthMinutes - MINUTES_PER_DAY2 : world2.time - Math.floor(definition.growthMinutes * 0.9);
+      const plantedAt = ripe ? world2.time - definition.growthMinutes - MINUTES_PER_DAY3 : world2.time - Math.floor(definition.growthMinutes * 0.9);
       const growth = Math.min(1, Math.max(0, (world2.time - plantedAt) / definition.growthMinutes));
       const state2 = growth >= 1 ? "ripe" : "growing";
       for (const tile of world2.agriculture.tilesForStrip(strip.id)) {
@@ -475,7 +623,7 @@
         tile.growth = growth;
         tile.weedLevel = 0.15;
         tile.plantedAt = plantedAt;
-        tile.lastWorkedAt = world2.time - 5 * MINUTES_PER_DAY2;
+        tile.lastWorkedAt = world2.time - 5 * MINUTES_PER_DAY3;
       }
     }
     return {
@@ -1137,7 +1285,7 @@
   };
 
   // src/activities/WorkplaceLiquidReserveActivity.ts
-  var MINUTES_PER_DAY3 = 24 * 60;
+  var MINUTES_PER_DAY4 = 24 * 60;
   var WorkplaceLiquidReserveActivity = class {
     constructor(options) {
       this.options = options;
@@ -1145,7 +1293,7 @@
       this.name = options.name ?? "Refill Workplace Liquid Reserve";
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY3;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY4;
       if (!isActive(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
       const bucket = character.physical.get(this.options.bucketItemId)?.item;
       if (!bucket?.liquidContainer) return [];
@@ -1182,7 +1330,7 @@
   }
 
   // src/activities/StagedWorkplaceProductionActivity.ts
-  var MINUTES_PER_DAY4 = 24 * 60;
+  var MINUTES_PER_DAY5 = 24 * 60;
   var StagedWorkplaceProductionActivity = class {
     constructor(options) {
       this.options = options;
@@ -1217,7 +1365,7 @@
       this.name = options.name ?? "Produce Workplace Stock";
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY4;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY5;
       if (!isActive2(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
       const remainingWorkMinutes = minutesUntilEnd(
         minuteOfDay,
@@ -1339,13 +1487,13 @@
   }
   function minutesUntilEnd(minuteOfDay, start2, end) {
     if (!isActive2(minuteOfDay, start2, end)) return 0;
-    if (start2 === end) return MINUTES_PER_DAY4;
+    if (start2 === end) return MINUTES_PER_DAY5;
     if (start2 < end) return end - minuteOfDay;
-    return minuteOfDay >= start2 ? MINUTES_PER_DAY4 - minuteOfDay + end : end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY5 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/activities/DoorScheduleActivity.ts
-  var MINUTES_PER_DAY5 = 24 * 60;
+  var MINUTES_PER_DAY6 = 24 * 60;
   var DEFAULT_RETRY_MINUTES = 5;
   var DEFAULT_DOOR_ROUTINE_PRIORITY = 75;
   var DoorScheduleActivity = class {
@@ -1358,13 +1506,13 @@
         ["closesAt", options.closesAt],
         ["startMinuteOfDay", options.startMinuteOfDay]
       ]) {
-        if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY5) {
+        if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY6) {
           throw new Error(`${name} must be an integer minute from 0 to 1439.`);
         }
       }
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY5;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY6;
       const desiredState = this.isOpenTime(minuteOfDay) ? "open" : "barred";
       const operation = character.memory.getByType("door-operation").find((memory) => memory.subjectId === this.options.doorId);
       const rememberedState = operation?.context?.state;
@@ -1398,8 +1546,8 @@
       return minuteOfDay >= this.options.opensAt || minuteOfDay < this.options.closesAt;
     }
     nextOpeningTime(time, minuteOfDay) {
-      let untilOpening = (this.options.opensAt - minuteOfDay + MINUTES_PER_DAY5) % MINUTES_PER_DAY5;
-      if (untilOpening === 0) untilOpening = MINUTES_PER_DAY5;
+      let untilOpening = (this.options.opensAt - minuteOfDay + MINUTES_PER_DAY6) % MINUTES_PER_DAY6;
+      if (untilOpening === 0) untilOpening = MINUTES_PER_DAY6;
       return time + untilOpening;
     }
   };
@@ -1437,7 +1585,7 @@
   };
 
   // src/activities/ServicePointOperationActivity.ts
-  var MINUTES_PER_DAY6 = 24 * 60;
+  var MINUTES_PER_DAY7 = 24 * 60;
   var DEFAULT_OPERATION_PRIORITY = 75;
   var DEFAULT_STAFFING_PRIORITY = 55;
   var ServicePointOperationActivity = class {
@@ -1450,13 +1598,13 @@
         ["closesAt", options.closesAt],
         ["startMinuteOfDay", options.startMinuteOfDay]
       ]) {
-        if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY6) {
+        if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY7) {
           throw new Error(`${name} must be an integer minute from 0 to 1439.`);
         }
       }
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY6;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY7;
       const operation = character.memory.getByType("service-point-operation").find((memory) => memory.subjectId === this.options.servicePointId);
       const soldOut = this.isSoldOutBlockingOpening(character, time, operation);
       const desiredState = this.isOpenTime(minuteOfDay) && !soldOut ? "open" : "closed";
@@ -1501,9 +1649,9 @@
       return !character.physical.getAll().some((possession) => possession.item.type === itemType);
     }
     nextOpeningAfter(time) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY6;
-      const delta = (this.options.opensAt - minuteOfDay + MINUTES_PER_DAY6) % MINUTES_PER_DAY6;
-      return time + (delta === 0 ? MINUTES_PER_DAY6 : delta);
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY7;
+      const delta = (this.options.opensAt - minuteOfDay + MINUTES_PER_DAY7) % MINUTES_PER_DAY7;
+      return time + (delta === 0 ? MINUTES_PER_DAY7 : delta);
     }
     isOpenTime(minuteOfDay) {
       if (this.options.opensAt === this.options.closesAt) return true;
@@ -2757,7 +2905,7 @@
   };
 
   // src/scheduling/Schedule.ts
-  var MINUTES_PER_DAY7 = 24 * 60;
+  var MINUTES_PER_DAY8 = 24 * 60;
   var DailySchedule = class {
     constructor(startMinute, endMinute) {
       this.startMinute = startMinute;
@@ -2769,7 +2917,7 @@
       }
     }
     get durationMinutes() {
-      return this.startMinute < this.endMinute ? this.endMinute - this.startMinute : MINUTES_PER_DAY7 - this.startMinute + this.endMinute;
+      return this.startMinute < this.endMinute ? this.endMinute - this.startMinute : MINUTES_PER_DAY8 - this.startMinute + this.endMinute;
     }
     isActive(minuteOfDay) {
       this.assertMinute(minuteOfDay, "minuteOfDay");
@@ -2781,17 +2929,17 @@
     minutesUntilStart(minuteOfDay) {
       this.assertMinute(minuteOfDay, "minuteOfDay");
       if (this.isActive(minuteOfDay)) return 0;
-      return (this.startMinute - minuteOfDay + MINUTES_PER_DAY7) % MINUTES_PER_DAY7;
+      return (this.startMinute - minuteOfDay + MINUTES_PER_DAY8) % MINUTES_PER_DAY8;
     }
     minutesUntilEnd(minuteOfDay) {
       this.assertMinute(minuteOfDay, "minuteOfDay");
       if (this.isActive(minuteOfDay)) {
-        return (this.endMinute - minuteOfDay + MINUTES_PER_DAY7) % MINUTES_PER_DAY7;
+        return (this.endMinute - minuteOfDay + MINUTES_PER_DAY8) % MINUTES_PER_DAY8;
       }
       return this.minutesUntilStart(minuteOfDay) + this.durationMinutes;
     }
     assertMinute(value, name) {
-      if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY7) {
+      if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY8) {
         throw new Error(`${name} must be an integer from 0 to 1439.`);
       }
     }
@@ -3554,8 +3702,8 @@
   };
 
   // src/activities/FieldFarmingActivity.ts
-  var MINUTES_PER_DAY8 = 24 * 60;
-  var DEFAULT_MAINTENANCE_INTERVAL_MINUTES = 7 * MINUTES_PER_DAY8;
+  var MINUTES_PER_DAY9 = 24 * 60;
+  var DEFAULT_MAINTENANCE_INTERVAL_MINUTES = 7 * MINUTES_PER_DAY9;
   var FieldFarmingActivity = class {
     constructor(options) {
       this.options = options;
@@ -3571,7 +3719,7 @@
       }));
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY8;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY9;
       if (!isActive3(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
       const task = this.nextTask(time, character.position);
       if (!task) return [];
@@ -3680,9 +3828,9 @@
   }
   function minutesUntilEnd2(minuteOfDay, start2, end) {
     if (!isActive3(minuteOfDay, start2, end)) return 0;
-    if (start2 === end) return MINUTES_PER_DAY8;
+    if (start2 === end) return MINUTES_PER_DAY9;
     if (start2 < end) return end - minuteOfDay;
-    return minuteOfDay >= start2 ? MINUTES_PER_DAY8 - minuteOfDay + end : end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY9 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/activities/OfferGoodsForSaleActivity.ts
@@ -4326,7 +4474,7 @@
   }
 
   // src/activities/MaterialProcessingServiceActivity.ts
-  var MINUTES_PER_DAY9 = 24 * 60;
+  var MINUTES_PER_DAY10 = 24 * 60;
   var MaterialProcessingServiceActivity = class {
     constructor(options) {
       this.options = options;
@@ -4352,7 +4500,7 @@
       }
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY9;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY10;
       const requests = character.requests.getIncoming(time).filter(
         (request2) => request2.type === MATERIAL_PROCESSING_REQUEST_TYPE && (request2.status === "pending" || request2.status === "accepted") && request2.parameters?.service === this.options.service && request2.parameters?.offering === this.options.offering && request2.parameters?.inputItemType === this.options.inputItemType && request2.parameters?.inputItemCategory === this.options.inputItemCategory && (request2.status === "accepted" || this.isAvailableAt(minuteOfDay))
       ).sort((first, second) => {
@@ -4396,7 +4544,7 @@
     }
   };
   function validateMinute(name, value) {
-    if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY9) {
+    if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY10) {
       throw new Error(`${name} must be an integer minute from 0 to 1439.`);
     }
   }
@@ -4405,7 +4553,7 @@
   }
 
   // src/environment/LightEnvironment.ts
-  var MINUTES_PER_DAY10 = 24 * 60;
+  var MINUTES_PER_DAY11 = 24 * 60;
   var DAYLIGHT_START_MINUTE = 6 * 60;
   var DAYLIGHT_END_MINUTE = 20 * 60;
   var NIGHT_VISIBILITY_MULTIPLIER = 0.2;
@@ -4424,7 +4572,7 @@
     if (!Number.isFinite(minuteOfDay)) {
       throw new Error("Minute of day must be finite.");
     }
-    return (minuteOfDay % MINUTES_PER_DAY10 + MINUTES_PER_DAY10) % MINUTES_PER_DAY10;
+    return (minuteOfDay % MINUTES_PER_DAY11 + MINUTES_PER_DAY11) % MINUTES_PER_DAY11;
   }
 
   // src/social/ConversationRange.ts
@@ -5281,7 +5429,7 @@
   ];
 
   // src/activities/ProcessingDemandActivity.ts
-  var MINUTES_PER_DAY11 = 24 * 60;
+  var MINUTES_PER_DAY12 = 24 * 60;
 
   // src/world/Mill.ts
   var DEFAULT_MILL_WIDTH_METRES = 8;
@@ -6057,7 +6205,7 @@
   };
 
   // src/world/AccommodationSystem.ts
-  var MINUTES_PER_DAY12 = 24 * 60;
+  var MINUTES_PER_DAY13 = 24 * 60;
   var AccommodationSystem = class {
     constructor() {
       this.rooms = /* @__PURE__ */ new Map();
@@ -6095,7 +6243,7 @@
         roomId,
         occupantId,
         startTime,
-        endTime: startTime + days * MINUTES_PER_DAY12,
+        endTime: startTime + days * MINUTES_PER_DAY13,
         pricePaid: room5.rental.dailyRate * days
       };
       this.rentals.push(rental);
@@ -6227,7 +6375,7 @@
   };
 
   // src/world/World.ts
-  var MINUTES_PER_DAY13 = 24 * 60;
+  var MINUTES_PER_DAY14 = 24 * 60;
   var World = class {
     constructor(startMinuteOfDay = 0) {
       this.startMinuteOfDay = startMinuteOfDay;
@@ -6251,12 +6399,12 @@
       this.foodSpoilage = new FoodSpoilageSystem();
       this.agriculture = new AgricultureSystem();
       this.lastAgricultureGrowthDay = 0;
-      if (!Number.isInteger(startMinuteOfDay) || startMinuteOfDay < 0 || startMinuteOfDay >= MINUTES_PER_DAY13) {
+      if (!Number.isInteger(startMinuteOfDay) || startMinuteOfDay < 0 || startMinuteOfDay >= MINUTES_PER_DAY14) {
         throw new Error("World startMinuteOfDay must be an integer from 0 to 1439.");
       }
     }
     get minuteOfDay() {
-      return (this.startMinuteOfDay + this.time) % MINUTES_PER_DAY13;
+      return (this.startMinuteOfDay + this.time) % MINUTES_PER_DAY14;
     }
     addCharacter(character) {
       this.characters.push(character);
@@ -6381,7 +6529,7 @@
     update() {
       this.syncPresenceActionPoints();
       this.foodSpoilage.update(this.characters, 1);
-      const agricultureDay = Math.floor((this.startMinuteOfDay + this.time) / MINUTES_PER_DAY13);
+      const agricultureDay = Math.floor((this.startMinuteOfDay + this.time) / MINUTES_PER_DAY14);
       if (agricultureDay > this.lastAgricultureGrowthDay) {
         this.agriculture.update(this.time);
         this.lastAgricultureGrowthDay = agricultureDay;
@@ -6716,7 +6864,7 @@
   };
 
   // src/scheduling/AgendaPlanner.ts
-  var MINUTES_PER_DAY14 = 24 * 60;
+  var MINUTES_PER_DAY15 = 24 * 60;
   var MEAL_BREAK_GRACE_MINUTES = 30;
   var AgendaPlanner = class {
     constructor(planner, needs = new NeedForecaster(), routineReviewer = new RoutineReviewer()) {
@@ -6725,7 +6873,7 @@
       this.routineReviewer = routineReviewer;
     }
     ensureAgenda(character, world2) {
-      const dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY14);
+      const dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY15);
       if (character.dailyAgenda?.dayIndex !== dayIndex) {
         if (character.dailyAgenda) {
           this.routineReviewer.review(character, character.dailyAgenda);
@@ -6744,7 +6892,7 @@
       }
       character.dailyAgenda.items.sort((first, second) => first.plannedStart - second.plannedStart);
     }
-    build(character, world2, dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY14), templates = character.routineTemplates) {
+    build(character, world2, dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY15), templates = character.routineTemplates) {
       const items = [];
       const context = {
         character,
@@ -6852,7 +7000,7 @@
     materialiseMealBreaks(character, world2, dayIndex) {
       const agenda = character.dailyAgenda;
       if (!agenda || !this.hasSubjectiveMealLead(character)) return;
-      const dayStartTime = dayIndex * MINUTES_PER_DAY14 - world2.startMinuteOfDay;
+      const dayStartTime = dayIndex * MINUTES_PER_DAY15 - world2.startMinuteOfDay;
       for (const assignment of character.activitySchedules) {
         for (const mealBreak of assignment.mealBreaks ?? []) {
           if (!Number.isFinite(mealBreak.startMinuteOfDay) || !Number.isFinite(mealBreak.endMinuteOfDay) || mealBreak.endMinuteOfDay <= mealBreak.startMinuteOfDay) continue;
@@ -7438,7 +7586,7 @@
   };
 
   // src/services/ServiceAvailabilityMemory.ts
-  var MINUTES_PER_DAY15 = 24 * 60;
+  var MINUTES_PER_DAY16 = 24 * 60;
   var EVENING_CLOSED_RECONSIDERATION_MINUTE = 18 * 60;
   var LATE_NIGHT_START_MINUTE = 22 * 60;
   var MORNING_RECONSIDERATION_MINUTE = 6 * 60;
@@ -7518,8 +7666,8 @@
     if (valid.some((window) => isWithinWindow(current, window))) return void 0;
     const minutesUntilOpening = Math.min(...valid.map((window) => {
       const start2 = normalizeMinuteOfDay2(window.startMinuteOfDay);
-      const delta = (start2 - current + MINUTES_PER_DAY15) % MINUTES_PER_DAY15;
-      return delta === 0 ? MINUTES_PER_DAY15 : delta;
+      const delta = (start2 - current + MINUTES_PER_DAY16) % MINUTES_PER_DAY16;
+      return delta === 0 ? MINUTES_PER_DAY16 : delta;
     }));
     return time + Math.max(1, minutesUntilOpening);
   }
@@ -7562,11 +7710,11 @@
     return morningRetryAt(time, normalizeMinuteOfDay2(minuteOfDay));
   }
   function morningRetryAt(time, normalizedMinuteOfDay) {
-    const minutesUntilMorning = normalizedMinuteOfDay < MORNING_RECONSIDERATION_MINUTE ? MORNING_RECONSIDERATION_MINUTE - normalizedMinuteOfDay : MINUTES_PER_DAY15 - normalizedMinuteOfDay + MORNING_RECONSIDERATION_MINUTE;
+    const minutesUntilMorning = normalizedMinuteOfDay < MORNING_RECONSIDERATION_MINUTE ? MORNING_RECONSIDERATION_MINUTE - normalizedMinuteOfDay : MINUTES_PER_DAY16 - normalizedMinuteOfDay + MORNING_RECONSIDERATION_MINUTE;
     return time + Math.max(1, minutesUntilMorning);
   }
   function normalizeMinuteOfDay2(minuteOfDay) {
-    return (Math.floor(minuteOfDay) % MINUTES_PER_DAY15 + MINUTES_PER_DAY15) % MINUTES_PER_DAY15;
+    return (Math.floor(minuteOfDay) % MINUTES_PER_DAY16 + MINUTES_PER_DAY16) % MINUTES_PER_DAY16;
   }
 
   // src/services/ServiceDiscovery.ts
@@ -11541,7 +11689,7 @@
   }
 
   // src/planning/PurchaseExecution.ts
-  var MINUTES_PER_DAY16 = 24 * 60;
+  var MINUTES_PER_DAY17 = 24 * 60;
   var MORNING_RECONSIDERATION_MINUTE2 = 6 * 60;
   function registerPurchaseHandlers(registry, commerce, social, accessibility, movement) {
     registerIfMissing5(
@@ -11818,8 +11966,8 @@
     logSimulation(world2, "event", `${seller.name} closes service point ${placeId} after selling out of ${itemType}`);
   }
   function nextMorningRetryAt(time, minuteOfDay) {
-    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY16 + MINUTES_PER_DAY16) % MINUTES_PER_DAY16;
-    const delta = normalized < MORNING_RECONSIDERATION_MINUTE2 ? MORNING_RECONSIDERATION_MINUTE2 - normalized : MINUTES_PER_DAY16 - normalized + MORNING_RECONSIDERATION_MINUTE2;
+    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY17 + MINUTES_PER_DAY17) % MINUTES_PER_DAY17;
+    const delta = normalized < MORNING_RECONSIDERATION_MINUTE2 ? MORNING_RECONSIDERATION_MINUTE2 - normalized : MINUTES_PER_DAY17 - normalized + MORNING_RECONSIDERATION_MINUTE2;
     return time + Math.max(1, delta);
   }
   function rememberRefusal(buyer, providerId, context, request, time) {
@@ -11891,7 +12039,7 @@
   }
 
   // src/services/AccommodationExecution.ts
-  var MINUTES_PER_DAY17 = 24 * 60;
+  var MINUTES_PER_DAY18 = 24 * 60;
   function registerAccommodationHandlers(registry, commerce, social) {
     if (registry.has("rent-room")) return;
     registry.register("rent-room", (plan, character, world2) => {
@@ -11925,7 +12073,7 @@
         id: `${character.id}:accommodation-stay:${room5.id}:${world2.time}`,
         type: "accommodation-stay",
         subjectId: room5.id,
-        persistence: MINUTES_PER_DAY17,
+        persistence: MINUTES_PER_DAY18,
         confidence: 1,
         createdAt: world2.time,
         lastObservedAt: world2.time,
@@ -15897,7 +16045,7 @@
   }
 
   // src/services/ServiceProviderExecution.ts
-  var MINUTES_PER_DAY18 = 24 * 60;
+  var MINUTES_PER_DAY19 = 24 * 60;
   var MORNING_RECONSIDERATION_MINUTE3 = 6 * 60;
   var CLOSED_PROVIDER_RETRY_MINUTES = 30;
   function registerServiceProviderHandlers(registry, social, movement) {
@@ -16117,8 +16265,8 @@
     );
   }
   function nextMorningRetryAt2(time, minuteOfDay) {
-    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY18 + MINUTES_PER_DAY18) % MINUTES_PER_DAY18;
-    const delta = normalized < MORNING_RECONSIDERATION_MINUTE3 ? MORNING_RECONSIDERATION_MINUTE3 - normalized : MINUTES_PER_DAY18 - normalized + MORNING_RECONSIDERATION_MINUTE3;
+    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY19 + MINUTES_PER_DAY19) % MINUTES_PER_DAY19;
+    const delta = normalized < MORNING_RECONSIDERATION_MINUTE3 ? MORNING_RECONSIDERATION_MINUTE3 - normalized : MINUTES_PER_DAY19 - normalized + MORNING_RECONSIDERATION_MINUTE3;
     return time + Math.max(1, delta);
   }
   function bestKnownProviderLocation(character, providerId) {
@@ -18392,7 +18540,7 @@
   var SIMULATION_VIEW_SCHEMA_VERSION = 1;
 
   // src/view/SimulationViewAdapter.ts
-  var MINUTES_PER_DAY19 = 24 * 60;
+  var MINUTES_PER_DAY20 = 24 * 60;
   var SimulationViewAdapter = class {
     frame(world2) {
       return {
@@ -18411,8 +18559,8 @@
     }
     time(world2) {
       const absoluteMinute = world2.startMinuteOfDay + world2.time;
-      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY19) + 1;
-      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY19;
+      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY20) + 1;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY20;
       return {
         day,
         hour: Math.floor(minuteOfDay / 60),
@@ -18905,6 +19053,10 @@
   var MAX_TICKS_PER_SECOND = 1e3;
   var MAX_TICKS_PER_LOOP = 250;
   var MAX_STEP_MINUTES = 24 * 60;
+  var DEFAULT_DIAGNOSTIC_CAPTURE_MINUTES = 6 * 60;
+  var MAX_DIAGNOSTIC_CAPTURE_MINUTES = 24 * 60;
+  var DIAGNOSTIC_SNAPSHOT_INTERVAL = 5;
+  var RESTORE_TICKS_PER_CHUNK = 500;
   var workerScope = self;
   var { world, simulation } = createDefaultVillageScenario();
   var viewRecorder = new SimulationViewRecorder();
@@ -18915,20 +19067,47 @@
   var lastLoopAt = performance.now();
   var lastPublishAt = lastLoopAt;
   var tickBudget = 0;
+  var diagnosticRecorder;
+  var diagnosticStartedAtTick;
+  var diagnosticMaxMinutes;
+  var diagnosticEvents = [];
+  var restoring = false;
+  var restoreTargetTick;
   setSimulationConsoleOutputEnabled(false);
   subscribeSimulationLog((entry) => {
-    if (entry.level !== "event" && entry.level !== "decision") return;
-    pendingEvents.push({
+    if (restoring) return;
+    const event = {
       tick: entry.tick,
       level: entry.level,
       message: entry.message,
       ...entry.actorIds?.length ? { actorIds: [...entry.actorIds] } : {},
       ...entry.entityIds?.length ? { entityIds: [...entry.entityIds] } : {},
       ...entry.type ? { type: entry.type } : {}
-    });
+    };
+    if (diagnosticRecorder) diagnosticEvents.push(event);
+    if (entry.level === "event" || entry.level === "decision") pendingEvents.push(event);
   });
+  function diagnosticState() {
+    return diagnosticRecorder ? {
+      active: true,
+      startedAtTick: diagnosticStartedAtTick,
+      maxMinutes: diagnosticMaxMinutes
+    } : { active: false };
+  }
+  function restorationState() {
+    return restoring ? {
+      active: true,
+      currentTick: world.time,
+      targetTick: restoreTargetTick
+    } : { active: false };
+  }
   function state() {
-    return { running, ticksPerSecond };
+    return {
+      running,
+      ticksPerSecond,
+      diagnosticCapture: diagnosticState(),
+      restoration: restorationState()
+    };
   }
   function drainEvents() {
     return pendingEvents.splice(0, pendingEvents.length);
@@ -18944,6 +19123,54 @@
   }
   function publishState() {
     workerScope.postMessage({ type: "state", ...state() });
+  }
+  function startDiagnosticCapture(maxMinutes = DEFAULT_DIAGNOSTIC_CAPTURE_MINUTES) {
+    if (restoring) throw new Error("Wait for village restoration to finish before capturing diagnostics.");
+    if (diagnosticRecorder) {
+      throw new Error("A diagnostic capture is already active.");
+    }
+    const boundedMinutes = Math.max(
+      1,
+      Math.min(MAX_DIAGNOSTIC_CAPTURE_MINUTES, Math.floor(maxMinutes))
+    );
+    diagnosticRecorder = new SimulationDebugRecorder({
+      snapshotInterval: DIAGNOSTIC_SNAPSHOT_INTERVAL
+    });
+    diagnosticStartedAtTick = world.time;
+    diagnosticMaxMinutes = boundedMinutes;
+    diagnosticEvents = [];
+    diagnosticRecorder.start(world);
+    publishState();
+  }
+  function finishDiagnosticCapture() {
+    if (!diagnosticRecorder || diagnosticStartedAtTick === void 0) return;
+    const duration = world.time - diagnosticStartedAtTick;
+    const bundle = diagnosticRecorder.finish(world, diagnosticEvents, {
+      title: "Village browser diagnostic capture",
+      scenario: "default-village-browser",
+      duration,
+      sourceCommit: null,
+      packageVersion: null,
+      seed: null
+    });
+    diagnosticRecorder = void 0;
+    diagnosticStartedAtTick = void 0;
+    diagnosticMaxMinutes = void 0;
+    diagnosticEvents = [];
+    workerScope.postMessage({ type: "diagnostic-capture", bundle });
+    publishState();
+  }
+  function afterSimulationTick() {
+    diagnosticRecorder?.afterTick(world);
+    if (diagnosticRecorder && diagnosticStartedAtTick !== void 0 && diagnosticMaxMinutes !== void 0 && world.time - diagnosticStartedAtTick >= diagnosticMaxMinutes) {
+      finishDiagnosticCapture();
+    }
+  }
+  function runSimulationTicks(count) {
+    for (let index = 0; index < count; index++) {
+      simulation.tick();
+      afterSimulationTick();
+    }
   }
   function stopTimer() {
     if (timer !== void 0) clearTimeout(timer);
@@ -18963,7 +19190,7 @@
     const ticksToRun = Math.min(MAX_TICKS_PER_LOOP, Math.floor(tickBudget));
     if (ticksToRun > 0) {
       tickBudget -= ticksToRun;
-      for (let index = 0; index < ticksToRun; index++) simulation.tick();
+      runSimulationTicks(ticksToRun);
     }
     if (ticksToRun > 0 && now - lastPublishAt >= VIEW_PUBLISH_INTERVAL_MS) {
       publish("update");
@@ -18971,6 +19198,7 @@
     scheduleLoop();
   }
   function start() {
+    if (restoring) throw new Error("Village restoration is still in progress.");
     if (running) return;
     running = true;
     tickBudget = 0;
@@ -18986,9 +19214,10 @@
     publish("update");
   }
   function step(minutes = 1) {
+    if (restoring) throw new Error("Village restoration is still in progress.");
     const wholeMinutes = Math.max(1, Math.min(MAX_STEP_MINUTES, Math.floor(minutes)));
     if (running) pause();
-    for (let index = 0; index < wholeMinutes; index++) simulation.tick();
+    runSimulationTicks(wholeMinutes);
     publish("update");
   }
   function setSpeed(nextTicksPerSecond) {
@@ -19000,6 +19229,40 @@
     lastLoopAt = performance.now();
     publishState();
   }
+  function runRestoreChunk() {
+    if (!restoring || restoreTargetTick === void 0) return;
+    const remaining = restoreTargetTick - world.time;
+    if (remaining <= 0) {
+      restoring = false;
+      restoreTargetTick = void 0;
+      pendingEvents.length = 0;
+      publish("update");
+      return;
+    }
+    runSimulationTicks(Math.min(RESTORE_TICKS_PER_CHUNK, remaining));
+    publishState();
+    setTimeout(runRestoreChunk, 0);
+  }
+  function restoreToTick(targetTick) {
+    if (!Number.isSafeInteger(targetTick) || targetTick < 0) {
+      throw new Error("Saved simulation tick must be a non-negative safe integer.");
+    }
+    if (running) throw new Error("Pause the simulation before restoring a saved village.");
+    if (diagnosticRecorder) throw new Error("Finish the diagnostic capture before restoring a saved village.");
+    if (restoring) throw new Error("Village restoration is already in progress.");
+    if (targetTick < world.time) {
+      throw new Error("Replay restoration can only move a fresh village forward.");
+    }
+    if (targetTick === world.time) {
+      publish("update");
+      return;
+    }
+    pendingEvents.length = 0;
+    restoring = true;
+    restoreTargetTick = targetTick;
+    publishState();
+    setTimeout(runRestoreChunk, 0);
+  }
   workerScope.onmessage = (event) => {
     try {
       const command = event.data;
@@ -19007,6 +19270,13 @@
       else if (command.type === "pause") pause();
       else if (command.type === "step") step(command.minutes);
       else if (command.type === "set-speed") setSpeed(command.ticksPerSecond);
+      else if (command.type === "start-diagnostic-capture") {
+        startDiagnosticCapture(command.maxMinutes);
+      } else if (command.type === "stop-diagnostic-capture") {
+        finishDiagnosticCapture();
+      } else if (command.type === "restore-to-tick") {
+        restoreToTick(command.tick);
+      }
     } catch (error) {
       workerScope.postMessage({
         type: "error",

@@ -3,9 +3,83 @@
 
     const MAX_LIVE_FRAMES = 360;
     const MAX_LIVE_EVENTS = 2000;
+    const PERSISTENCE_KEY = "village3.live.replay.v1";
+    const PERSISTENCE_SCHEMA_VERSION = 1;
+    const PERSISTENCE_SCENARIO = "default-village";
     const workerUrl = "./simulation-worker.js";
     let worker;
     let liveRunning = false;
+    let diagnosticActive = false;
+    let diagnosticStartedAtTick;
+    let restoring = false;
+    let restoreCurrentTick;
+    let restoreTargetTick;
+    let persistedTick = loadPersistedTick();
+
+    restartButton.textContent = "Reset village";
+    restartButton.title = "Clear locally saved progress and start the village again from tick 0.";
+
+    const toolbar = root.querySelector(".toolbar");
+    const diagnosticDuration = document.createElement("select");
+    diagnosticDuration.setAttribute("aria-label", "Diagnostic capture duration");
+    for (const [minutes, label] of [[60, "1 hour"], [360, "6 hours"], [1440, "24 hours"]]) {
+        const option = document.createElement("option");
+        option.value = String(minutes);
+        option.textContent = label;
+        if (minutes === 360) option.selected = true;
+        diagnosticDuration.append(option);
+    }
+    const diagnosticButton = document.createElement("button");
+    diagnosticButton.type = "button";
+    diagnosticButton.textContent = "Capture diagnostic";
+    diagnosticButton.setAttribute("aria-pressed", "false");
+    if (toolbar && statusElement) {
+        toolbar.insertBefore(diagnosticDuration, statusElement);
+        toolbar.insertBefore(diagnosticButton, statusElement);
+    }
+
+    function loadPersistedTick() {
+        try {
+            const raw = localStorage.getItem(PERSISTENCE_KEY);
+            if (!raw) return undefined;
+            const saved = JSON.parse(raw);
+            if (
+                saved?.schemaVersion !== PERSISTENCE_SCHEMA_VERSION ||
+                saved?.scenario !== PERSISTENCE_SCENARIO ||
+                !Number.isSafeInteger(saved?.tick) ||
+                saved.tick < 0
+            ) {
+                return undefined;
+            }
+            return saved.tick;
+        } catch {
+            return undefined;
+        }
+    }
+
+    function savePersistedTick(tick) {
+        if (!Number.isSafeInteger(tick) || tick < 0) return;
+        try {
+            localStorage.setItem(PERSISTENCE_KEY, JSON.stringify({
+                schemaVersion: PERSISTENCE_SCHEMA_VERSION,
+                scenario: PERSISTENCE_SCENARIO,
+                tick
+            }));
+            persistedTick = tick;
+        } catch {
+            // Persistence is an enhancement. Browsers that block local storage can
+            // still run the live simulation normally for the lifetime of the page.
+        }
+    }
+
+    function clearPersistedTick() {
+        try {
+            localStorage.removeItem(PERSISTENCE_KEY);
+        } catch {
+            // The new worker still resets even if the browser refuses storage access.
+        }
+        persistedTick = undefined;
+    }
 
     function sleep(milliseconds) {
         return new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -43,12 +117,37 @@
     function updateLiveControls() {
         playButton.textContent = liveRunning ? "Pause simulation" : "Run simulation";
         playButton.setAttribute("aria-pressed", String(liveRunning));
+        playButton.disabled = restoring;
+        backButton.disabled = restoring;
+        forwardButton.disabled = restoring;
+        timeline.disabled = restoring;
+        restartButton.disabled = diagnosticActive;
+        for (const button of speedButtons) button.disabled = restoring;
+        diagnosticDuration.disabled = diagnosticActive || restoring;
+        diagnosticButton.disabled = restoring;
+        diagnosticButton.textContent = diagnosticActive
+            ? `Stop & export diagnostic${Number.isFinite(diagnosticStartedAtTick) ? ` (from ${diagnosticStartedAtTick})` : ""}`
+            : "Capture diagnostic";
+        diagnosticButton.setAttribute("aria-pressed", String(diagnosticActive));
     }
 
     function setWorkerState(message) {
         liveRunning = Boolean(message.running);
         if (Number.isFinite(message.ticksPerSecond)) speed = message.ticksPerSecond;
+        diagnosticActive = Boolean(message.diagnosticCapture?.active);
+        diagnosticStartedAtTick = message.diagnosticCapture?.startedAtTick;
+        restoring = Boolean(message.restoration?.active);
+        restoreCurrentTick = message.restoration?.currentTick;
+        restoreTargetTick = message.restoration?.targetTick;
         updateLiveControls();
+
+        if (restoring) {
+            const current = Number.isFinite(restoreCurrentTick) ? restoreCurrentTick : 0;
+            const target = Number.isFinite(restoreTargetTick) ? restoreTargetTick : persistedTick;
+            statusElement.textContent = Number.isFinite(target)
+                ? `Restoring saved village · tick ${current} / ${target}`
+                : `Restoring saved village · tick ${current}`;
+        }
     }
 
     function appendLiveFrame(frame, events) {
@@ -67,7 +166,8 @@
 
         if (followLive) frameIndex = recording.frames.length - 1;
         timeline.max = String(recording.frames.length - 1);
-        statusElement.textContent = `Live in this browser · ${recording.frames.length}/${MAX_LIVE_FRAMES} recent frames retained`;
+        savePersistedTick(frame.tick);
+        statusElement.textContent = `Live in this browser · progress saved locally at tick ${frame.tick} · ${recording.frames.length}/${MAX_LIVE_FRAMES} recent frames retained`;
 
         if (!worldBounds || recording.frames.length === 1) {
             worldBounds = calculateWorldBounds(recording.frames);
@@ -76,11 +176,36 @@
         renderFrame();
     }
 
+    function exportDiagnosticBundle(bundle) {
+        const snapshots = Array.isArray(bundle?.snapshots) ? bundle.snapshots : [];
+        const firstTick = snapshots[0]?.tick ?? "start";
+        const lastTick = snapshots.at(-1)?.tick ?? "end";
+        // Keep the file compact: these captures are designed to be uploaded for
+        // analysis rather than hand-edited, so pretty-print whitespace adds no value.
+        const json = JSON.stringify(bundle);
+        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `village-diagnostic-${firstTick}-${lastTick}.json`;
+        document.body.append(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+        statusElement.textContent = `Diagnostic capture exported · ticks ${firstTick}–${lastTick}`;
+    }
+
     function handleWorkerMessage(event) {
         const message = event.data;
         if (!message || typeof message.type !== "string") return;
         if (message.type === "error") {
             statusElement.textContent = `Live simulation error: ${message.message}`;
+            return;
+        }
+        if (message.type === "diagnostic-capture") {
+            diagnosticActive = false;
+            diagnosticStartedAtTick = undefined;
+            updateLiveControls();
+            exportDiagnosticBundle(message.bundle);
             return;
         }
         if (message.type === "state") {
@@ -98,10 +223,21 @@
             frameIndex = 0;
             worldBounds = calculateWorldBounds(recording.frames);
             timeline.max = "0";
-            statusElement.textContent = `Live in this browser · ${MAX_LIVE_FRAMES}-frame rolling history`;
             fitWorld();
             renderFrame();
             resizeCanvas();
+
+            if (Number.isSafeInteger(persistedTick) && persistedTick > message.frame.tick) {
+                restoring = true;
+                restoreCurrentTick = message.frame.tick;
+                restoreTargetTick = persistedTick;
+                updateLiveControls();
+                statusElement.textContent = `Restoring saved village · tick ${message.frame.tick} / ${persistedTick}`;
+                send({ type: "restore-to-tick", tick: persistedTick });
+            } else {
+                savePersistedTick(message.frame.tick);
+                statusElement.textContent = `Live in this browser · progress saved locally at tick ${message.frame.tick}`;
+            }
             return;
         }
         if (message.type === "update") {
@@ -141,6 +277,17 @@
         renderFrame();
     }
 
+    diagnosticButton.addEventListener("click", () => {
+        if (diagnosticActive) {
+            send({ type: "stop-diagnostic-capture" });
+            return;
+        }
+        send({
+            type: "start-diagnostic-capture",
+            maxMinutes: Number(diagnosticDuration.value) || 360
+        });
+    });
+
     playButton.addEventListener("click", event => {
         event.stopImmediatePropagation();
         togglePlayback();
@@ -148,7 +295,13 @@
 
     restartButton.addEventListener("click", event => {
         event.stopImmediatePropagation();
+        clearPersistedTick();
         liveRunning = false;
+        restoring = false;
+        restoreCurrentTick = undefined;
+        restoreTargetTick = undefined;
+        diagnosticActive = false;
+        diagnosticStartedAtTick = undefined;
         recording = {
             schemaVersion: SCHEMA_VERSION,
             title: "Village live browser simulation",
@@ -158,7 +311,7 @@
         frameIndex = 0;
         worldBounds = undefined;
         cameraInitialised = false;
-        statusElement.textContent = "Restarting live simulation…";
+        statusElement.textContent = "Resetting village…";
         updateLiveControls();
         createWorker();
     }, true);
@@ -195,7 +348,10 @@
     }
 
     waitForViewerBootstrap().then(() => {
-        statusElement.textContent = "Starting live browser simulation…";
+        statusElement.textContent = Number.isSafeInteger(persistedTick) && persistedTick > 0
+            ? `Starting live browser simulation · saved tick ${persistedTick} found`
+            : "Starting live browser simulation…";
+        updateLiveControls();
         createWorker();
     });
 })();
