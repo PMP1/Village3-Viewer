@@ -471,7 +471,8 @@
       bob: { position: { x: 78, y: 78 }, frontDoorSide: "east" },
       charlie: { position: { x: 77, y: 122 }, frontDoorSide: "north" },
       dave: { position: { x: 124, y: 121 }, frontDoorSide: "north" },
-      george: { position: { x: 132, y: 82 }, frontDoorSide: "south" }
+      george: { position: { x: 132, y: 82 }, frontDoorSide: "south" },
+      helen: { position: { x: 88, y: 122 }, frontDoorSide: "north" }
     },
     tavern: {
       position: { x: 103, y: 81 },
@@ -4242,29 +4243,35 @@
 
   // src/scenarios/DefaultFarmer.ts
   var DEFAULT_FARMER_ID = "charlie";
-  var DEFAULT_FARM_HOME_ID = "charlie-home";
-  var DEFAULT_FARM_WORK_ACTIVITY_ID = "charlie-household-field-work";
-  var DEFAULT_FARM_WORK_SCHEDULE_ID = "charlie-field-workday";
+  var DEFAULT_FARM_WORK_ACTIVITY_ID = farmerFieldWorkActivityId(DEFAULT_FARMER_ID);
+  var DEFAULT_FARM_WORK_SCHEDULE_ID = farmerFieldWorkScheduleId(DEFAULT_FARMER_ID);
   var DEFAULT_VEGETABLE_WHOLESALE_PRICE = 2;
   var DEFAULT_VEGETABLE_BUYER_ID = "dave";
   var DEFAULT_VEGETABLE_MARKET_ID = "dave-cart";
+  var DEFAULT_VEGETABLE_BUY_ACTIVITY_ID = "dave-buy-farm-vegetables";
+  function farmerFieldWorkActivityId(farmerId) {
+    return `${farmerId}-household-field-work`;
+  }
+  function farmerFieldWorkScheduleId(farmerId) {
+    return `${farmerId}-field-workday`;
+  }
   function createDefaultFarmer(world2, layout, farmer) {
-    if (farmer.id !== DEFAULT_FARMER_ID) throw new Error(`Default farmer setup requires ${DEFAULT_FARMER_ID}.`);
-    const farmHome = world2.getObject(DEFAULT_FARM_HOME_ID);
+    if (!farmer.homeId) throw new Error(`${farmer.name} requires a home before farmer setup.`);
+    const farmHome = world2.getObject(farmer.homeId);
     if (!farmHome || farmHome.ownerId !== farmer.id) {
-      throw new Error("Charlie's existing home is required as the first farmhouse.");
+      throw new Error(`${farmer.name}'s owned home is required as a farmhouse.`);
     }
     const vegetableBuyer = world2.characters.find((character) => character.id === DEFAULT_VEGETABLE_BUYER_ID);
     const vegetableMarket = world2.getObject(DEFAULT_VEGETABLE_MARKET_ID);
     if (!vegetableBuyer || !vegetableMarket || vegetableMarket.ownerId !== vegetableBuyer.id || !vegetableMarket.containerId) {
-      throw new Error("Charlie's vegetable trade requires Dave and his physical market cart.");
+      throw new Error(`${farmer.name}'s vegetable trade requires Dave and his physical market cart.`);
     }
     const vegetableCustomerPosition = {
       x: (layout.daveCartPosition.x + layout.daveSellingPosition.x) / 2,
       y: (layout.daveCartPosition.y + layout.daveSellingPosition.y) / 2
     };
     farmer.addActivity(new OfferGoodsForSaleActivity({
-      id: "charlie-sell-harvest",
+      id: `${farmer.id}-sell-harvest`,
       name: "Sell Harvest Surplus",
       service: "trade",
       offering: "grain",
@@ -4274,7 +4281,7 @@
       priority: 45
     }));
     farmer.addActivity(new OfferGoodsForSaleActivity({
-      id: "charlie-sell-vegetables",
+      id: `${farmer.id}-sell-vegetables`,
       name: "Sell Vegetable Surplus",
       service: "trade",
       offering: "portable-food",
@@ -4283,17 +4290,19 @@
       reserveStock: 0,
       priority: 45
     }));
-    vegetableBuyer.addActivity(new BuyOfferedGoodsActivity({
-      id: "dave-buy-farm-vegetables",
-      name: "Buy Farm Vegetables",
-      categoryPolicies: {
-        vegetable: {
-          maxUnitPrice: DEFAULT_VEGETABLE_WHOLESALE_PRICE,
-          storageContainerId: vegetableMarket.containerId,
-          storagePosition: { ...layout.daveSellingPosition }
+    if (!vegetableBuyer.activities.some((activity) => activity.id === DEFAULT_VEGETABLE_BUY_ACTIVITY_ID)) {
+      vegetableBuyer.addActivity(new BuyOfferedGoodsActivity({
+        id: DEFAULT_VEGETABLE_BUY_ACTIVITY_ID,
+        name: "Buy Farm Vegetables",
+        categoryPolicies: {
+          vegetable: {
+            maxUnitPrice: DEFAULT_VEGETABLE_WHOLESALE_PRICE,
+            storageContainerId: vegetableMarket.containerId,
+            storagePosition: { ...layout.daveSellingPosition }
+          }
         }
-      }
-    }));
+      }));
+    }
     farmer.knownPeople.add(DEFAULT_MERCHANT_ID);
     farmer.addKnowledge({
       type: "service-provider",
@@ -4395,7 +4404,7 @@
     });
     if (tiles.length === 0) throw new Error(`${farmer.name} has no active household field tiles to work.`);
     const activity = new FieldFarmingActivity({
-      id: DEFAULT_FARM_WORK_ACTIVITY_ID,
+      id: farmerFieldWorkActivityId(farmer.id),
       name: "Work Household Fields",
       tiles,
       startMinuteOfDay: world2.startMinuteOfDay,
@@ -4405,7 +4414,7 @@
     });
     farmer.addActivity(activity);
     farmer.addActivitySchedule({
-      id: DEFAULT_FARM_WORK_SCHEDULE_ID,
+      id: farmerFieldWorkScheduleId(farmer.id),
       activityId: activity.id,
       schedule: new DailySchedule(8 * 60, 17 * 60),
       priorityBoost: 0,
@@ -4423,6 +4432,52 @@
   function knownFarmState(state2) {
     if (state2 === "fallow") throw new Error("Fallow tiles must not be included in an active farming assignment.");
     return state2;
+  }
+
+  // src/scenarios/DefaultHelenFarmer.ts
+  var DEFAULT_HELEN_ID = "helen";
+  var DEFAULT_HELEN_HOME_ID = "helen-home";
+  function createDefaultHelenResident(world2, layout) {
+    const homeSite = layout.homes.helen;
+    const farmer = new Character(DEFAULT_HELEN_ID, "Helen", { ...homeSite.position }, createPersonality({
+      frugality: 0.65,
+      caution: 0.55,
+      patience: 0.65,
+      conscientiousness: 0.8,
+      sociability: 0.55,
+      helpfulness: 0.7,
+      curiosity: 0.45,
+      assertiveness: 0.5,
+      integrity: 0.8,
+      emotionalStability: 0.7
+    }));
+    farmer.homeId = DEFAULT_HELEN_HOME_ID;
+    farmer.hunger = 0;
+    farmer.thirst = 0;
+    farmer.tiredness = 30;
+    farmer.money = 10;
+    farmer.addActivity(new WaterPreparationActivity("helen-water-preparation"));
+    const farmHome = createHouse({
+      id: DEFAULT_HELEN_HOME_ID,
+      ownerId: farmer.id,
+      position: { ...homeSite.position },
+      frontDoorSide: homeSite.frontDoorSide
+    });
+    const frontDoorId = `${farmHome.id}-front-door`;
+    const insidePosition = farmHome.physicalFootprint ? getDoorInsidePosition(farmHome.physicalFootprint, frontDoorId) : void 0;
+    if (!insidePosition) throw new Error("Helen's farmhouse requires an inside-operable front door.");
+    farmer.addActivity(new DoorScheduleActivity({
+      id: "helen-home-front-door-hours",
+      doorId: frontDoorId,
+      placeId: farmHome.id,
+      insidePosition,
+      opensAt: 6 * 60,
+      closesAt: 22 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      initialState: "open"
+    }));
+    world2.addObject(farmHome);
+    return { farmer, farmHome };
   }
 
   // src/services/MaterialProcessingService.ts
@@ -18403,12 +18458,20 @@
     const farmerSetup = createDefaultFarmer(scenario.world, defaultVillageLayout, charlie);
     const bakerySetup = createDefaultBakeryWorkplace(scenario.world, defaultVillageLayout);
     scenario.world.addCharacter(bakerySetup.baker);
+    const helenResidentSetup = createDefaultHelenResident(scenario.world, defaultVillageLayout);
+    scenario.world.addCharacter(helenResidentSetup.farmer);
+    const helenFarmerSetup = createDefaultFarmer(
+      scenario.world,
+      defaultVillageLayout,
+      helenResidentSetup.farmer
+    );
     const fieldTenancySetup = configureDefaultFieldTenancy(scenario.world, defaultVillageLayout);
     const agriculturalYearSetup = configureDefaultAgriculturalYear(
       scenario.world,
       fieldTenancySetup.fieldIds
     );
     configureDefaultFarmerFieldWork(scenario.world, charlie);
+    configureDefaultFarmerFieldWork(scenario.world, helenResidentSetup.farmer);
     const alice = scenario.world.characters.find((character) => character.id === "alice");
     const emma = scenario.world.characters.find((character) => character.id === "emma");
     const dave = scenario.world.characters.find((character) => character.id === "dave");
@@ -18525,12 +18588,26 @@
       footwear: "boots",
       footwearColor: "dark-brown"
     });
+    setCharacterAppearance(helenResidentSetup.farmer, {
+      bodyType: "female",
+      hairStyle: "long-bangs",
+      hairColor: "dark-brown",
+      lowerBody: "pants",
+      lowerBodyColor: "brown",
+      torso: "shirt",
+      torsoColor: "cream",
+      outerwear: "apron",
+      outerwearColor: "green",
+      footwear: "boots",
+      footwearColor: "brown"
+    });
     return {
       ...scenario,
       agriculturalYearSetup,
       bakerySetup,
       fieldTenancySetup,
       farmerSetup,
+      helenFarmerSetup,
       millSetup,
       merchantSetup
     };
