@@ -15,6 +15,13 @@
     let restoreCurrentTick;
     let restoreTargetTick;
     let persistedTick = loadPersistedTick();
+    let liveAnimationRequest;
+    let liveAnimationFromFrame;
+    let liveAnimationToFrame;
+    let liveAnimationStartedAt;
+    let liveAnimationLastAt;
+    let liveAnimationTimeMs = 0;
+    let liveAnimationDisplayFrame;
 
     restartButton.textContent = "Reset village";
     restartButton.title = "Clear locally saved progress and start the village again from tick 0.";
@@ -95,6 +102,78 @@
         return Boolean(recording?.frames?.length) && frameIndex >= recording.frames.length - 1;
     }
 
+    function cancelLiveAnimation(renderLatest = false) {
+        if (liveAnimationRequest) cancelAnimationFrame(liveAnimationRequest);
+        liveAnimationRequest = undefined;
+        liveAnimationFromFrame = undefined;
+        liveAnimationToFrame = undefined;
+        liveAnimationStartedAt = undefined;
+        liveAnimationLastAt = undefined;
+        liveAnimationDisplayFrame = undefined;
+        if (renderLatest && recording?.frames?.length) renderMap();
+    }
+
+    function liveTransitionDuration() {
+        return playbackDelay();
+    }
+
+    function animateLiveTransition(timestamp) {
+        const renderer = window.VillageCharacterRenderer;
+        if (
+            !liveAnimationFromFrame ||
+            !liveAnimationToFrame ||
+            !renderer?.renderTransitionFrame ||
+            !liveRunning ||
+            !isAtLiveEdge()
+        ) {
+            cancelLiveAnimation(true);
+            return;
+        }
+
+        if (liveAnimationStartedAt === undefined) liveAnimationStartedAt = timestamp;
+        if (liveAnimationLastAt === undefined) liveAnimationLastAt = timestamp;
+        const animationDelta = Math.max(0, timestamp - liveAnimationLastAt);
+        liveAnimationTimeMs += animationDelta * Math.max(1, speed);
+        liveAnimationLastAt = timestamp;
+
+        const progress = clamp(
+            (timestamp - liveAnimationStartedAt) / liveTransitionDuration(),
+            0,
+            1
+        );
+        liveAnimationDisplayFrame = renderer.interpolatedLatestFrame(
+            liveAnimationFromFrame,
+            liveAnimationToFrame,
+            progress
+        );
+        renderer.renderTransitionFrame(
+            liveAnimationFromFrame,
+            liveAnimationToFrame,
+            progress,
+            liveAnimationTimeMs
+        );
+
+        if (progress >= 1) {
+            cancelLiveAnimation(true);
+            return;
+        }
+        liveAnimationRequest = requestAnimationFrame(animateLiveTransition);
+    }
+
+    function startLiveAnimation(previousFrame, latestFrame) {
+        const renderer = window.VillageCharacterRenderer;
+        if (!renderer?.renderTransitionFrame || !renderer?.interpolatedLatestFrame) return;
+        const fromFrame = liveAnimationDisplayFrame ?? previousFrame;
+        if (liveAnimationRequest) cancelAnimationFrame(liveAnimationRequest);
+        liveAnimationFromFrame = fromFrame;
+        liveAnimationToFrame = latestFrame;
+        liveAnimationStartedAt = undefined;
+        liveAnimationLastAt = undefined;
+        liveAnimationDisplayFrame = fromFrame;
+        renderer.renderTransitionFrame(fromFrame, latestFrame, 0, liveAnimationTimeMs);
+        liveAnimationRequest = requestAnimationFrame(animateLiveTransition);
+    }
+
     function nearestFrameForTick(tick) {
         if (!recording?.frames?.length) return undefined;
         let nearest = recording.frames[0];
@@ -132,6 +211,7 @@
     }
 
     function setWorkerState(message) {
+        const wasRunning = liveRunning;
         liveRunning = Boolean(message.running);
         if (Number.isFinite(message.ticksPerSecond)) speed = message.ticksPerSecond;
         diagnosticActive = Boolean(message.diagnosticCapture?.active);
@@ -139,6 +219,7 @@
         restoring = Boolean(message.restoration?.active);
         restoreCurrentTick = message.restoration?.currentTick;
         restoreTargetTick = message.restoration?.targetTick;
+        if ((!liveRunning && wasRunning) || restoring) cancelLiveAnimation(true);
         updateLiveControls();
 
         if (restoring) {
@@ -152,6 +233,10 @@
 
     function appendLiveFrame(frame, events) {
         const followLive = isAtLiveEdge();
+        const previousFrame = recording.frames.at(-1);
+        const transitionFrom = followLive
+            ? liveAnimationDisplayFrame ?? previousFrame
+            : undefined;
         recording.title = "Village live browser simulation";
         recording.frames.push(frame);
         recording.events.push(...(events ?? []));
@@ -174,6 +259,9 @@
             fitWorld();
         }
         renderFrame();
+        if (followLive && liveRunning && transitionFrom) {
+            startLiveAnimation(transitionFrom, frame);
+        }
     }
 
     function exportDiagnosticBundle(bundle) {
@@ -213,6 +301,7 @@
             return;
         }
         if (message.type === "ready") {
+            cancelLiveAnimation(false);
             setWorkerState(message);
             recording = {
                 schemaVersion: SCHEMA_VERSION,
@@ -247,6 +336,7 @@
     }
 
     function createWorker() {
+        cancelLiveAnimation(false);
         worker?.terminate();
         worker = new Worker(workerUrl);
         worker.addEventListener("message", handleWorkerMessage);
@@ -264,14 +354,17 @@
     };
 
     stopPlayback = function pauseLiveSimulation() {
+        cancelLiveAnimation(true);
         send({ type: "pause" });
     };
 
     togglePlayback = function toggleLiveSimulation() {
+        if (liveRunning) cancelLiveAnimation(true);
         send({ type: liveRunning ? "pause" : "start" });
     };
 
     function pauseAndInspect(index) {
+        cancelLiveAnimation(false);
         send({ type: "pause" });
         frameIndex = clamp(Math.round(index), 0, recording.frames.length - 1);
         renderFrame();
@@ -295,6 +388,7 @@
 
     restartButton.addEventListener("click", event => {
         event.stopImmediatePropagation();
+        cancelLiveAnimation(false);
         clearPersistedTick();
         liveRunning = false;
         restoring = false;
@@ -326,6 +420,7 @@
         if (frameIndex < recording.frames.length - 1) {
             pauseAndInspect(frameIndex + 1);
         } else {
+            cancelLiveAnimation(false);
             send({ type: "pause" });
             send({ type: "step", minutes: 1 });
         }

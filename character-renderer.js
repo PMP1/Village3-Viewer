@@ -16,6 +16,7 @@
     const LPC_WALK_FRAME_DURATION_MS = 110;
     const MIN_CHARACTER_SPRITE_PIXELS = 24;
     const MAX_CHARACTER_SPRITE_PIXELS = 128;
+    const INTERACTION_FACING_RANGE_METRES = 1.05;
 
     // Additional appearance layers are pinned to one upstream Universal LPC
     // revision. Colour variants use the same palette swapping approach as the LPC
@@ -153,6 +154,30 @@
         };
     }
 
+    function interpolatedLatestFrame(previousFrame, latestFrame, progress) {
+        if (!previousFrame || !latestFrame) return latestFrame;
+        const amount = clampUnit(progress);
+        return {
+            ...latestFrame,
+            entities: latestFrame.entities.map(entity => {
+                if (entity.category !== "character") return entity;
+                const previousEntity = entityAtFrame(previousFrame, entity.id);
+                if (!previousEntity || previousEntity.category !== "character") return entity;
+                const from = previousEntity.position;
+                const to = entity.position;
+                return {
+                    ...entity,
+                    position: interpolatePosition(from, to, amount),
+                    __viewerMotion: {
+                        from,
+                        to,
+                        progress: amount
+                    }
+                };
+            })
+        };
+    }
+
     // Keep the recording as the source of truth. During drawing only, substitute a
     // transient frame whose character positions are between two recorded ticks.
     // All simulation state, inspector data, events, and navigation remain discrete.
@@ -179,6 +204,23 @@
             recording.frames[frameIndex] = frame;
         }
     };
+
+    function renderTransitionFrame(previousFrame, latestFrame, progress, animationTimeMs = playbackAnimationTimeMs) {
+        if (!recording || !previousFrame || !latestFrame || !recording.frames[frameIndex]) return;
+        const currentFrame = recording.frames[frameIndex];
+        const previousAnimationTimeMs = playbackAnimationTimeMs;
+        const displayFrame = interpolatedLatestFrame(previousFrame, latestFrame, progress);
+        playbackAnimationTimeMs = Number.isFinite(animationTimeMs)
+            ? animationTimeMs
+            : previousAnimationTimeMs;
+        recording.frames[frameIndex] = displayFrame;
+        try {
+            renderMapBeforeCharacterInterpolation();
+        } finally {
+            recording.frames[frameIndex] = currentFrame;
+            playbackAnimationTimeMs = previousAnimationTimeMs;
+        }
+    }
 
     const setFrameIndexBeforeCharacterInterpolation = setFrameIndex;
     setFrameIndex = function(nextIndex) {
@@ -427,6 +469,56 @@
         return undefined;
     }
 
+    function isInteractionWait(entity) {
+        const action = entity?.state?.action;
+        return typeof action === "string" &&
+            action.startsWith("wait-for-") &&
+            !action.endsWith("-service-retry");
+    }
+
+    function nearestInteractionCharacter(entity, frame) {
+        let nearest;
+        let nearestDistance = Infinity;
+        for (const candidate of frame?.entities ?? []) {
+            if (candidate.category !== "character" || candidate.id === entity.id) continue;
+            const distance = Math.hypot(
+                candidate.position.x - entity.position.x,
+                candidate.position.y - entity.position.y
+            );
+            if (distance > INTERACTION_FACING_RANGE_METRES || distance >= nearestDistance) continue;
+            nearest = candidate;
+            nearestDistance = distance;
+        }
+        return nearest;
+    }
+
+    function interactionPartner(entity) {
+        const frame = recording?.frames?.[frameIndex];
+        if (!frame || entity?.state?.movementTarget) return undefined;
+
+        if (isInteractionWait(entity)) {
+            const direct = nearestInteractionCharacter(entity, frame);
+            if (direct) return direct;
+        }
+
+        for (const source of frame.entities) {
+            if (source.category !== "character" || source.id === entity.id || !isInteractionWait(source)) continue;
+            if (source.state?.movementTarget) continue;
+            const partner = nearestInteractionCharacter(source, frame);
+            if (partner?.id === entity.id) return source;
+        }
+        return undefined;
+    }
+
+    function interactionFacingDirection(entity) {
+        const partner = interactionPartner(entity);
+        if (!partner) return undefined;
+        return directionFromDelta(
+            partner.position.x - entity.position.x,
+            partner.position.y - entity.position.y
+        );
+    }
+
     function walkAnimationFrame() {
         return Math.floor(playbackAnimationTimeMs / LPC_WALK_FRAME_DURATION_MS) % LPC_WALK_FRAMES;
     }
@@ -437,7 +529,9 @@
             const dx = motion.to.x - motion.from.x;
             const dy = motion.to.y - motion.from.y;
             const moving = Math.abs(dx) > 0.0001 || Math.abs(dy) > 0.0001;
-            const direction = directionFromDelta(dx, dy) ?? facingByCharacter.get(entity.id) ?? "south";
+            const direction = moving
+                ? directionFromDelta(dx, dy) ?? facingByCharacter.get(entity.id) ?? "south"
+                : interactionFacingDirection(entity) ?? facingByCharacter.get(entity.id) ?? "south";
             facingByCharacter.set(entity.id, direction);
             return {
                 animation: moving ? "walk" : "idle",
@@ -449,7 +543,10 @@
         const previous = entityFromPreviousFrame(entity.id);
         const dx = previous ? entity.position.x - previous.position.x : 0;
         const dy = previous ? entity.position.y - previous.position.y : 0;
-        const direction = directionFromDelta(dx, dy) ?? facingByCharacter.get(entity.id) ?? "south";
+        const direction = interactionFacingDirection(entity) ??
+            directionFromDelta(dx, dy) ??
+            facingByCharacter.get(entity.id) ??
+            "south";
         facingByCharacter.set(entity.id, direction);
         return {
             animation: "idle",
@@ -588,6 +685,7 @@
         walkFrameDurationMs: LPC_WALK_FRAME_DURATION_MS,
         visualSizeMetres: LPC_VISUAL_SIZE_METRES,
         groundAnchorY: LPC_GROUND_ANCHOR_Y,
+        interactionFacingRangeMetres: INTERACTION_FACING_RANGE_METRES,
         upstreamCommit: LPC_UPSTREAM_COMMIT,
         layers: LPC_ASSET_DEFINITIONS,
         appearanceFromEntity,
@@ -595,6 +693,7 @@
         paletteMappingForLayer,
         recolourLayerImage,
         directionFromDelta,
+        interactionFacingDirection,
         characterAnimationState,
         characterSpriteBounds,
         frameSourceRect,
@@ -602,6 +701,8 @@
         interpolatePosition,
         interpolatedCharacterEntity,
         interpolatedFrame,
+        interpolatedLatestFrame,
+        renderTransitionFrame,
         get movementProgress() { return movementProgress; },
         get playbackAnimationTimeMs() { return playbackAnimationTimeMs; },
         get ready() { return layersReady(defaultEntity); },
