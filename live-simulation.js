@@ -114,7 +114,8 @@
     }
 
     function liveTransitionDuration() {
-        return playbackDelay();
+        const tickDurationMs = 1000 / Math.max(0.001, speed);
+        return Math.max(100, Math.round(tickDurationMs));
     }
 
     function animateLiveTransition(timestamp) {
