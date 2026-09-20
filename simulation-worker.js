@@ -211,15 +211,15 @@
           (knowledge) => knowledge.type === "service-place" && knowledge.subjectId === placeId && knowledge.polarity === "positive" && knowledge.context?.offering !== void 0
         );
         if (alreadyInspected) return void 0;
-        const distance8 = Math.hypot(
+        const distance10 = Math.hypot(
           position.x - character.position.x,
           position.y - character.position.y
         );
-        if (distance8 > this.nearbyRangeMetres) return void 0;
+        if (distance10 > this.nearbyRangeMetres) return void 0;
         return {
           placeId,
           position: { x: position.x, y: position.y },
-          distance: distance8
+          distance: distance10
         };
       }).filter(
         (entry) => entry !== void 0
@@ -472,7 +472,8 @@
       charlie: { position: { x: 77, y: 122 }, frontDoorSide: "north" },
       dave: { position: { x: 124, y: 121 }, frontDoorSide: "north" },
       george: { position: { x: 132, y: 82 }, frontDoorSide: "south" },
-      helen: { position: { x: 88, y: 122 }, frontDoorSide: "north" }
+      helen: { position: { x: 88, y: 122 }, frontDoorSide: "north" },
+      isaac: { position: { x: 54, y: 132 }, frontDoorSide: "east" }
     },
     tavern: {
       position: { x: 103, y: 81 },
@@ -510,6 +511,10 @@
       storagePosition: { x: 124, y: 94 }
     },
     butcherSite: { x: 121, y: 104 },
+    hookcrestHabitats: [
+      { id: "west-field-hookcrest-habitat", position: { x: 79, y: 146 } },
+      { id: "east-field-hookcrest-habitat", position: { x: 133, y: 146 } }
+    ],
     cartPitches,
     mapFeatures
   };
@@ -2214,9 +2219,9 @@
      * This is intentionally a cheap local query rather than route finding.
      */
     isLineClear(from, to, channel) {
-      const distance8 = Math.hypot(to.x - from.x, to.y - from.y);
-      if (distance8 === 0) return !this.isBlocked(this.worldToCell(from));
-      const steps = Math.max(1, Math.ceil(distance8 / DIRECT_LINE_SAMPLE_METRES));
+      const distance10 = Math.hypot(to.x - from.x, to.y - from.y);
+      if (distance10 === 0) return !this.isBlocked(this.worldToCell(from));
+      const steps = Math.max(1, Math.ceil(distance10 / DIRECT_LINE_SAMPLE_METRES));
       let previousCell = this.worldToCell(from);
       if (this.isBlocked(previousCell)) return false;
       for (let step2 = 1; step2 <= steps; step2++) {
@@ -2997,11 +3002,11 @@
       dx = observer.x - centre.x;
       dy = observer.y - centre.y;
     }
-    const distance8 = Math.hypot(dx, dy);
-    if (distance8 < 1e-9) return { ...observer };
+    const distance10 = Math.hypot(dx, dy);
+    if (distance10 < 1e-9) return { ...observer };
     return {
-      x: nearest.x + dx / distance8 * VISIBILITY_OFFSET_METRES,
-      y: nearest.y + dy / distance8 * VISIBILITY_OFFSET_METRES
+      x: nearest.x + dx / distance10 * VISIBILITY_OFFSET_METRES,
+      y: nearest.y + dy / distance10 * VISIBILITY_OFFSET_METRES
     };
   }
   function worldObjectFixtureObstruction(object) {
@@ -3269,8 +3274,8 @@
   function movementBarrierBetweenPositions(firstPosition, secondPosition) {
     const first = worldToCell(firstPosition);
     const second = worldToCell(secondPosition);
-    const distance8 = Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
-    if (distance8 !== 1) return void 0;
+    const distance10 = Math.abs(first.x - second.x) + Math.abs(first.y - second.y);
+    if (distance10 !== 1) return void 0;
     return {
       first,
       second,
@@ -3799,13 +3804,13 @@
     let nearest;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const tile of tiles) {
-      const distance8 = Math.hypot(
+      const distance10 = Math.hypot(
         tile.x + 0.5 - position.x,
         tile.y + 0.5 - position.y
       );
-      if (distance8 < nearestDistance) {
+      if (distance10 < nearestDistance) {
         nearest = tile;
-        nearestDistance = distance8;
+        nearestDistance = distance10;
       }
     }
     return nearest;
@@ -4633,12 +4638,12 @@
   // src/social/ConversationRange.ts
   var CONVERSATION_RANGE_METRES = 1;
   var CONVERSATION_RANGE_EPSILON = 1e-6;
-  function isWithinConversationRange(distance8) {
-    return distance8 <= CONVERSATION_RANGE_METRES + CONVERSATION_RANGE_EPSILON;
+  function isWithinConversationRange(distance10) {
+    return distance10 <= CONVERSATION_RANGE_METRES + CONVERSATION_RANGE_EPSILON;
   }
   function arePositionsWithinConversationRange(first, second, world2) {
-    const distance8 = Math.hypot(first.x - second.x, first.y - second.y);
-    return isWithinConversationRange(distance8) && world2.navigation.isLineClear(first, second, "interaction");
+    const distance10 = Math.hypot(first.x - second.x, first.y - second.y);
+    return isWithinConversationRange(distance10) && world2.navigation.isLineClear(first, second, "interaction");
   }
 
   // src/navigation/NavigationClearance.ts
@@ -4656,8 +4661,8 @@
     }
     if (!grid.isLineClear(from, to, channel)) return false;
     if (clearance <= GEOMETRY_EPSILON) return true;
-    const distance8 = Math.hypot(to.x - from.x, to.y - from.y);
-    const sampleCount = Math.max(1, Math.ceil(distance8 / CLEARANCE_EDGE_SAMPLE_METRES));
+    const distance10 = Math.hypot(to.x - from.x, to.y - from.y);
+    const sampleCount = Math.max(1, Math.ceil(distance10 / CLEARANCE_EDGE_SAMPLE_METRES));
     const nearbyCellRadius = Math.max(
       1,
       Math.ceil(clearance + CLEARANCE_EDGE_SAMPLE_METRES / 2)
@@ -4943,9 +4948,9 @@
     directApproachPoint(from, target, range) {
       const dx = from.x - target.x;
       const dy = from.y - target.y;
-      const distance8 = Math.hypot(dx, dy);
-      if (distance8 <= range || distance8 === 0) return { ...from };
-      const scale = range / distance8;
+      const distance10 = Math.hypot(dx, dy);
+      if (distance10 <= range || distance10 === 0) return { ...from };
+      const scale = range / distance10;
       return {
         x: target.x + dx * scale,
         y: target.y + dy * scale
@@ -5027,13 +5032,13 @@
       return cells;
     }
     routeDistance(from, waypoints) {
-      let distance8 = 0;
+      let distance10 = 0;
       let previous = from;
       for (const waypoint of waypoints) {
-        distance8 += Math.hypot(waypoint.x - previous.x, waypoint.y - previous.y);
+        distance10 += Math.hypot(waypoint.x - previous.x, waypoint.y - previous.y);
         previous = waypoint;
       }
-      return distance8;
+      return distance10;
     }
     heuristic(first, second) {
       const dx = Math.abs(first.x - second.x);
@@ -5145,17 +5150,17 @@
         return void 0;
       }
       const trackingKey = this.trackingKey(observer.id, subject.id);
-      const distance8 = this.distanceBetween(observer.position, subject.position);
+      const distance10 = this.distanceBetween(observer.position, subject.position);
       const multiplier = normalizeVisibilityMultiplier(visibilityMultiplier);
-      if (distance8 > this.detectionRange * multiplier) {
+      if (distance10 > this.detectionRange * multiplier) {
         this.observationIds.delete(trackingKey);
         return void 0;
       }
       let level = "detection";
-      if (distance8 <= this.recognitionRange * multiplier) {
+      if (distance10 <= this.recognitionRange * multiplier) {
         level = "recognition";
       }
-      if (distance8 <= this.identificationRange * multiplier && observer.knownPeople.has(subject.id)) {
+      if (distance10 <= this.identificationRange * multiplier && observer.knownPeople.has(subject.id)) {
         level = "identification";
       }
       return {
@@ -5164,22 +5169,22 @@
         subjectId: level === "identification" ? subject.id : void 0,
         level,
         position: { ...subject.position },
-        distance: distance8,
+        distance: distance10,
         observedAt: time
       };
     }
     observeObject(observer, object, time, visibilityMultiplier = 1) {
-      const distance8 = this.distanceBetween(observer.position, object.position);
+      const distance10 = this.distanceBetween(observer.position, object.position);
       const profile = this.objectPerceptionProfile(object);
       const multiplier = normalizeVisibilityMultiplier(visibilityMultiplier);
-      if (distance8 > profile.detectionRange * multiplier) {
+      if (distance10 > profile.detectionRange * multiplier) {
         return void 0;
       }
       let level = "detection";
-      if (distance8 <= profile.recognitionRange * multiplier) {
+      if (distance10 <= profile.recognitionRange * multiplier) {
         level = "recognition";
       }
-      if (distance8 <= profile.identificationRange * multiplier) {
+      if (distance10 <= profile.identificationRange * multiplier) {
         level = "identification";
       }
       const trackingKey = this.trackingKey(observer.id, object.id);
@@ -5201,7 +5206,7 @@
         servicePointState: object.servicePoint?.state,
         level,
         position: { ...object.position },
-        distance: distance8,
+        distance: distance10,
         observedAt: time,
         displayedForSale: object.displayedForSale === true
       };
@@ -5292,11 +5297,11 @@
       const sizeScore = visualSize === "large" ? 80 : visualSize === "medium" ? 40 : 15;
       const recognisedBuildingScore = memory.context?.recognisedKind === "building" ? 30 : 0;
       const noveltyScore = typeof knownPlaceId === "string" ? 0 : 20;
-      const distance8 = Math.hypot(
+      const distance10 = Math.hypot(
         position.x - character.position.x,
         position.y - character.position.y
       );
-      const score = sizeScore + recognisedBuildingScore + noveltyScore + memory.confidence * 10 - distance8 * 0.1;
+      const score = sizeScore + recognisedBuildingScore + noveltyScore + memory.confidence * 10 - distance10 * 0.1;
       return {
         observationId: memory.subjectId,
         position: { ...position },
@@ -5325,10 +5330,10 @@
         const unitX = dx / distanceToLead;
         const unitY = dy / distanceToLead;
         const waypoints2 = Array.from({ length: PERSON_SEARCH_LEGS }, (_, index) => {
-          const distance8 = radius2 * ((index + 1) / PERSON_SEARCH_LEGS);
+          const distance10 = radius2 * ((index + 1) / PERSON_SEARCH_LEGS);
           return {
-            x: origin.x + unitX * distance8,
-            y: origin.y + unitY * distance8
+            x: origin.x + unitX * distance10,
+            y: origin.y + unitY * distance10
           };
         });
         return {
@@ -5346,10 +5351,10 @@
     const spiralStep = Math.floor(searchIndex / 2) + 1;
     const radius = Math.min(PERSON_SEARCH_MAX_DISTANCE, PERSON_SEARCH_BASE_DISTANCE * spiralStep);
     const waypoints = Array.from({ length: PERSON_SEARCH_LEGS }, (_, index) => {
-      const distance8 = radius * ((index + 1) / PERSON_SEARCH_LEGS);
+      const distance10 = radius * ((index + 1) / PERSON_SEARCH_LEGS);
       return {
-        x: origin.x + direction.x * distance8,
-        y: origin.y + direction.y * distance8
+        x: origin.x + direction.x * distance10,
+        y: origin.y + direction.y * distance10
       };
     });
     return {
@@ -6429,10 +6434,119 @@
     }
   };
 
+  // src/chance/ChanceSystem.ts
+  var SeededChanceSource = class {
+    constructor(seed) {
+      this.seed = seed;
+      if (!Number.isInteger(seed)) throw new Error("Chance seed must be an integer.");
+      this.state = seed >>> 0 || 1831565813;
+    }
+    next() {
+      let value = this.state;
+      value ^= value << 13;
+      value ^= value >>> 17;
+      value ^= value << 5;
+      this.state = value >>> 0;
+      return this.state / 4294967296;
+    }
+  };
+  var ChanceSystem = class {
+    constructor(source) {
+      this.source = source;
+    }
+    resolve(probability) {
+      if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+        throw new Error("Chance probability must be between zero and one.");
+      }
+      const roll = this.source.next();
+      if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+        throw new Error("Chance source must return a value in [0, 1).");
+      }
+      return { probability, roll, succeeded: roll < probability };
+    }
+  };
+
+  // src/hunting/HuntingSystem.ts
+  var HuntingSystem = class {
+    constructor() {
+      this.habitats = /* @__PURE__ */ new Map();
+    }
+    registerHabitat(descriptor) {
+      if (this.habitats.has(descriptor.id)) {
+        throw new Error(`Hunting habitat ${descriptor.id} is already registered.`);
+      }
+      if (!Number.isInteger(descriptor.capacity) || descriptor.capacity <= 0) {
+        throw new Error("Hunting habitat capacity must be a positive integer.");
+      }
+      if (!Number.isFinite(descriptor.successChance) || descriptor.successChance < 0 || descriptor.successChance > 1) {
+        throw new Error("Hunting success chance must be between zero and one.");
+      }
+      if (descriptor.recoveryMinutes <= 0 || descriptor.disturbanceMinutes <= 0) {
+        throw new Error("Hunting habitat recovery and disturbance must be positive.");
+      }
+      this.habitats.set(descriptor.id, {
+        ...descriptor,
+        position: { ...descriptor.position },
+        available: descriptor.capacity,
+        disturbedUntil: 0
+      });
+    }
+    getHabitat(id, time) {
+      const habitat = this.habitats.get(id);
+      if (!habitat) return void 0;
+      this.recover(habitat, time);
+      return {
+        id: habitat.id,
+        speciesId: habitat.speciesId,
+        position: { ...habitat.position },
+        capacity: habitat.capacity,
+        successChance: habitat.successChance,
+        recoveryMinutes: habitat.recoveryMinutes,
+        disturbanceMinutes: habitat.disturbanceMinutes
+      };
+    }
+    getAvailable(id, time) {
+      const habitat = this.habitats.get(id);
+      if (!habitat) return void 0;
+      this.recover(habitat, time);
+      return habitat.available;
+    }
+    attempt(id, time, chance) {
+      const habitat = this.habitats.get(id);
+      if (!habitat) return { status: "unavailable", retryAt: time };
+      this.recover(habitat, time);
+      if (habitat.available <= 0 || time < habitat.disturbedUntil) {
+        return {
+          status: "unavailable",
+          retryAt: Math.max(habitat.disturbedUntil, habitat.nextRecoveryAt ?? time)
+        };
+      }
+      const result = chance.resolve(habitat.successChance);
+      habitat.disturbedUntil = time + habitat.disturbanceMinutes;
+      if (!result.succeeded) {
+        return { status: "escaped", retryAt: habitat.disturbedUntil, chance: result };
+      }
+      habitat.available -= 1;
+      habitat.nextRecoveryAt ?? (habitat.nextRecoveryAt = time + habitat.recoveryMinutes);
+      return {
+        status: "caught",
+        retryAt: Math.max(habitat.disturbedUntil, habitat.nextRecoveryAt),
+        chance: result
+      };
+    }
+    recover(habitat, time) {
+      while (habitat.available < habitat.capacity && habitat.nextRecoveryAt !== void 0 && time >= habitat.nextRecoveryAt) {
+        habitat.available += 1;
+        habitat.nextRecoveryAt += habitat.recoveryMinutes;
+      }
+      if (habitat.available >= habitat.capacity) habitat.nextRecoveryAt = void 0;
+    }
+  };
+
   // src/world/World.ts
   var MINUTES_PER_DAY14 = 24 * 60;
   var World = class {
-    constructor(startMinuteOfDay = 0) {
+    constructor(startMinuteOfDay = 0, chanceSource = new SeededChanceSource(1)) {
       this.startMinuteOfDay = startMinuteOfDay;
       this.time = 0;
       /**
@@ -6453,10 +6567,13 @@
       this.households = new HouseholdSystem();
       this.foodSpoilage = new FoodSpoilageSystem();
       this.agriculture = new AgricultureSystem();
+      this.hunting = new HuntingSystem();
       this.lastAgricultureGrowthDay = 0;
       if (!Number.isInteger(startMinuteOfDay) || startMinuteOfDay < 0 || startMinuteOfDay >= MINUTES_PER_DAY14) {
         throw new Error("World startMinuteOfDay must be an integer from 0 to 1439.");
       }
+      this.chance = new ChanceSystem(chanceSource);
+      this.chanceSeed = chanceSource instanceof SeededChanceSource ? chanceSource.seed : null;
     }
     get minuteOfDay() {
       return (this.startMinuteOfDay + this.time) % MINUTES_PER_DAY14;
@@ -10314,6 +10431,83 @@
     return typeof value === "number" && Number.isFinite(value) && value >= 0;
   }
 
+  // src/planning/HuntingPlans.ts
+  var huntingPlans = [
+    {
+      id: "hunt-hookcrest",
+      name: "Hunt Hookcrest",
+      achieves: { type: "huntHookcrest" },
+      prerequisites: [],
+      getPrerequisites: (goal) => locationPrerequisite(huntHookcrestGoalParameters(goal)),
+      resolveTarget: (_goal, _context, prerequisiteTargets) => inheritFirstLocationTarget(prerequisiteTargets),
+      isAvailable: (context, goal) => {
+        const parameters = huntHookcrestGoalParameters(goal);
+        if (!parameters) return false;
+        const bow = context.character.physical.get(parameters.bowItemId);
+        return bow?.location.type === "hand" || bow?.location.type === "equipped";
+      },
+      duration: 20,
+      risk: 5,
+      cost: 0
+    },
+    {
+      id: "butcher-hookcrest",
+      name: "Butcher Hookcrest",
+      achieves: { type: "butcherHookcrest" },
+      prerequisites: [],
+      getPrerequisites: (goal) => locationPrerequisite(butcherHookcrestGoalParameters(goal)),
+      resolveTarget: (_goal, _context, prerequisiteTargets) => inheritFirstLocationTarget(prerequisiteTargets),
+      isAvailable: (context, goal) => {
+        const parameters = butcherHookcrestGoalParameters(goal);
+        return parameters !== void 0 && context.character.physical.has(parameters.carcassItemId);
+      },
+      duration: 15,
+      risk: 1,
+      cost: 0
+    }
+  ];
+  function huntHookcrestGoalParameters(goal) {
+    if (!goal || goal.type !== "huntHookcrest" || !goal.parameters) return void 0;
+    const p = goal.parameters;
+    if (typeof p.activityId !== "string" || typeof p.habitatId !== "string" || p.speciesId !== "hookcrest" || !isPosition10(p.position) || typeof p.bowItemId !== "string") return void 0;
+    return {
+      activityId: p.activityId,
+      habitatId: p.habitatId,
+      speciesId: p.speciesId,
+      position: { ...p.position },
+      bowItemId: p.bowItemId
+    };
+  }
+  function butcherHookcrestGoalParameters(goal) {
+    if (!goal || goal.type !== "butcherHookcrest" || !goal.parameters) return void 0;
+    const p = goal.parameters;
+    if (typeof p.activityId !== "string" || typeof p.carcassItemId !== "string" || typeof p.facilityId !== "string" || typeof p.actionPointId !== "string" || !isPosition10(p.position) || typeof p.outputContainerId !== "string" || !Number.isInteger(p.yieldCount) || p.yieldCount <= 0) return void 0;
+    return {
+      activityId: p.activityId,
+      carcassItemId: p.carcassItemId,
+      facilityId: p.facilityId,
+      actionPointId: p.actionPointId,
+      position: { ...p.position },
+      outputContainerId: p.outputContainerId,
+      yieldCount: p.yieldCount
+    };
+  }
+  function locationPrerequisite(parameters) {
+    if (!parameters) return [];
+    return [{
+      type: "atLocation",
+      parameters: {
+        subjectId: parameters.habitatId ?? parameters.actionPointId,
+        position: { ...parameters.position }
+      }
+    }];
+  }
+  function isPosition10(value) {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value;
+    return typeof candidate.x === "number" && Number.isFinite(candidate.x) && typeof candidate.y === "number" && Number.isFinite(candidate.y);
+  }
+
   // src/activities/PreparedMealServiceActivity.ts
   var PreparedMealServiceActivity = class {
     constructor() {
@@ -10427,11 +10621,11 @@
       const recognitionRange = NAVIGATION_BARRIER_RECOGNITION_RANGE_METRES * visibilityMultiplier;
       for (const edge of world2.navigation.getBarrierEdges()) {
         const midpoint = this.barrierMidpoint(edge, world2);
-        const distance8 = Math.hypot(
+        const distance10 = Math.hypot(
           midpoint.x - observer.position.x,
           midpoint.y - observer.position.y
         );
-        if (distance8 > recognitionRange) continue;
+        if (distance10 > recognitionRange) continue;
         const visiblePoint = this.visibleSidePoint(observer.position, midpoint);
         if (!world2.navigation.isLineClear(observer.position, visiblePoint, "vision")) continue;
         observer.navigationKnowledge.observeBarrier(
@@ -10455,12 +10649,12 @@
     visibleSidePoint(observer, midpoint) {
       const dx = observer.x - midpoint.x;
       const dy = observer.y - midpoint.y;
-      const distance8 = Math.hypot(dx, dy);
-      if (distance8 === 0) return { ...midpoint };
-      const offset = Math.min(NAVIGATION_BARRIER_VISIBILITY_OFFSET_METRES, distance8);
+      const distance10 = Math.hypot(dx, dy);
+      if (distance10 === 0) return { ...midpoint };
+      const offset = Math.min(NAVIGATION_BARRIER_VISIBILITY_OFFSET_METRES, distance10);
       return {
-        x: midpoint.x + dx / distance8 * offset,
-        y: midpoint.y + dy / distance8 * offset
+        x: midpoint.x + dx / distance10 * offset,
+        y: midpoint.y + dy / distance10 * offset
       };
     }
     recordObservation(observer, subject, observation, world2) {
@@ -10717,11 +10911,11 @@
               height: 1
             };
             const visiblePoint = fixtureVisibleSidePoint(observer.position, cellObstruction);
-            const distance8 = Math.hypot(
+            const distance10 = Math.hypot(
               visiblePoint.x - observer.position.x,
               visiblePoint.y - observer.position.y
             );
-            if (distance8 > recognitionRange) continue;
+            if (distance10 > recognitionRange) continue;
             if (!world2.navigation.isLineClear(observer.position, visiblePoint, "vision")) continue;
             observer.navigationKnowledge.observeBlockedCell(
               cell,
@@ -11286,7 +11480,7 @@
     );
     if (!observation) return void 0;
     const position = observation.context?.position;
-    if (!isPosition10(position)) return void 0;
+    if (!isPosition11(position)) return void 0;
     const identifiedPersonId = observation.context?.identifiedPersonId;
     if (typeof identifiedPersonId === "string") {
       const identified = world2.characters.find((candidate) => candidate.id === identifiedPersonId);
@@ -11298,7 +11492,7 @@
     );
     return physicallyMatching.length === 1 ? physicallyMatching[0] : void 0;
   }
-  function isPosition10(value) {
+  function isPosition11(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -11404,11 +11598,11 @@
     );
   }
   function goToLocation(character, world2, target, movement) {
-    const distance8 = Math.hypot(
+    const distance10 = Math.hypot(
       target.position.x - character.position.x,
       target.position.y - character.position.y
     );
-    if (distance8 <= 0.1) return { status: "completed" };
+    if (distance10 <= 0.1) return { status: "completed" };
     const travelDuration = movement.estimateTravelDuration(character, target.position, world2);
     if (travelDuration === void 0) return { status: "failed" };
     movement.start(character, target.position);
@@ -11523,7 +11717,7 @@
   function findNewSearchPersonTarget(state2, character) {
     const memory = character.memory.getByType("person-observed").filter((candidate) => !state2.initialObservationIds.includes(candidate.subjectId)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
     const position = memory?.context?.position;
-    if (!memory || !isPosition11(position)) return void 0;
+    if (!memory || !isPosition12(position)) return void 0;
     const personId = memory.context?.identifiedPersonId;
     if (typeof personId === "string") {
       return {
@@ -11648,13 +11842,13 @@
     );
   }
   function isWithinPersonApproachRange(character, personPosition, world2) {
-    const distance8 = Math.hypot(
+    const distance10 = Math.hypot(
       personPosition.x - character.position.x,
       personPosition.y - character.position.y
     );
-    return distance8 <= CHARACTER_PERSON_APPROACH_RANGE_METRES + 1e-6 && arePositionsWithinConversationRange(character.position, personPosition, world2);
+    return distance10 <= CHARACTER_PERSON_APPROACH_RANGE_METRES + 1e-6 && arePositionsWithinConversationRange(character.position, personPosition, world2);
   }
-  function isPosition11(value) {
+  function isPosition12(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -11674,7 +11868,7 @@
       return { status: "not-observed" };
     }
     if (character.knownPeople.has(providerId)) {
-      const observed = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition12(memory.context?.position)).filter((memory) => isWithinConversationRange(distance3(character.position, memory.context.position))).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
+      const observed = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition13(memory.context?.position)).filter((memory) => isWithinConversationRange(distance3(character.position, memory.context.position))).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
       if (!observed) return { status: "not-observed" };
       const observedPosition2 = observed.context.position;
       const provider = world2.characters.find((candidate2) => candidate2.id === providerId);
@@ -11687,7 +11881,7 @@
       }
       return { status: "ready", provider };
     }
-    const observation = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === void 0).filter((memory) => isPosition12(memory.context?.position)).filter((memory) => {
+    const observation = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === void 0).filter((memory) => isPosition13(memory.context?.position)).filter((memory) => {
       const position = memory.context.position;
       return distance3(position, target.position) <= EXPECTED_PROVIDER_POSITION_TOLERANCE_METRES && isWithinConversationRange(distance3(character.position, position));
     }).filter((memory) => !hasRecentIdentityCheck(character, providerId, memory.subjectId, world2.time)).sort((first, second) => {
@@ -11734,7 +11928,7 @@
       context: { providerId, observationId }
     });
   }
-  function isPosition12(value) {
+  function isPosition13(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -11877,7 +12071,7 @@
         return { status: "failed" };
       }
     }
-    const distance8 = Math.hypot(
+    const distance10 = Math.hypot(
       buyer.position.x - seller.position.x,
       buyer.position.y - seller.position.y
     );
@@ -11885,7 +12079,7 @@
     if (items.length < purchaseQuantity) {
       const sellerContext = foodServiceContext(seller, seller.id);
       const buyerContext = purchaseServiceContext(buyer, seller.id, selector2);
-      const toldBuyer = isWithinConversationRange(distance8) && social.respondToRequest(seller, buyer, requestId, "refused", world2);
+      const toldBuyer = isWithinConversationRange(distance10) && social.respondToRequest(seller, buyer, requestId, "refused", world2);
       if (!toldBuyer) {
         seller.requests.updateIncomingStatus(requestId, "refused");
       }
@@ -11908,7 +12102,7 @@
       return { status: "failed" };
     }
     if (request.status === "pending") {
-      if (!isWithinConversationRange(distance8)) {
+      if (!isWithinConversationRange(distance10)) {
         seller.requests.updateIncomingStatus(requestId, "cancelled");
         return { status: "failed" };
       }
@@ -12524,8 +12718,8 @@
     if (!isPositiveInteger5(p.inputCount)) return void 0;
     if (typeof p.outputItemType !== "string" || !isPositiveInteger5(p.outputCount)) return void 0;
     if (!isNonNegativeInteger4(p.price) || !isPositiveNumber5(p.expectedDuration)) return void 0;
-    if (typeof p.workActionPointId !== "string" || !isPosition13(p.workPosition)) return void 0;
-    if (typeof p.returnActionPointId !== "string" || !isPosition13(p.returnPosition)) return void 0;
+    if (typeof p.workActionPointId !== "string" || !isPosition14(p.workPosition)) return void 0;
+    if (typeof p.returnActionPointId !== "string" || !isPosition14(p.returnPosition)) return void 0;
     return {
       requestId: p.requestId,
       service: p.service,
@@ -12575,7 +12769,7 @@
   function distance4(first, second) {
     return Math.hypot(first.x - second.x, first.y - second.y);
   }
-  function isPosition13(value) {
+  function isPosition14(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -13891,6 +14085,262 @@
     };
   }
 
+  // src/activities/HookcrestHuntingActivity.ts
+  var MINUTES_PER_DAY19 = 24 * 60;
+  var HookcrestHuntingActivity = class {
+    constructor(options) {
+      this.options = options;
+      this.name = "Hunt Hookcrests";
+      if (options.habitats.length === 0) throw new Error("Hookcrest hunting requires a known habitat.");
+      if (!Number.isInteger(options.meatYield) || options.meatYield <= 0) {
+        throw new Error("Hookcrest meat yield must be a positive integer.");
+      }
+      if (!Number.isInteger(options.targetMeatStock) || options.targetMeatStock <= 0) {
+        throw new Error("Hookcrest target meat stock must be a positive integer.");
+      }
+      this.id = options.id;
+      this.habitats = options.habitats.map((habitat) => ({
+        ...habitat,
+        position: { ...habitat.position }
+      }));
+    }
+    getIntents({ character, time }) {
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY19;
+      if (!isActive4(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
+      const carcass = character.physical.getAll().find(
+        (possession) => possession.item.type === "hookcrest-carcass"
+      );
+      if (carcass) {
+        return [{
+          id: `${character.id}:activity:${this.id}:butcher:${carcass.item.id}`,
+          source: { type: "activity", id: this.id },
+          goal: {
+            type: "butcherHookcrest",
+            parameters: {
+              activityId: this.id,
+              carcassItemId: carcass.item.id,
+              facilityId: this.options.preparationFacilityId,
+              actionPointId: this.options.preparationActionPointId,
+              position: { ...this.options.preparationPosition },
+              outputContainerId: this.options.outputContainerId,
+              yieldCount: this.options.meatYield
+            }
+          },
+          priority: (this.options.priority ?? 46) + 6
+        }];
+      }
+      const meatStock = character.physical.getContents(this.options.outputContainerId).filter((possession) => possession.item.food?.kind === "meat").length;
+      if (meatStock >= this.options.targetMeatStock) return [];
+      const bow = character.physical.get(this.options.bowItemId);
+      if (!bow || bow.location.type !== "hand" && bow.location.type !== "equipped") return [];
+      const habitat = nearestAvailableHabitat(this.habitats, time, character.position);
+      if (!habitat) return [];
+      return [{
+        id: `${character.id}:activity:${this.id}:hunt:${habitat.id}`,
+        source: { type: "activity", id: this.id },
+        goal: {
+          type: "huntHookcrest",
+          parameters: {
+            activityId: this.id,
+            habitatId: habitat.id,
+            speciesId: habitat.speciesId,
+            position: { ...habitat.position },
+            bowItemId: this.options.bowItemId
+          }
+        },
+        priority: this.options.priority ?? 46
+      }];
+    }
+    expectsHunt(habitatId, time, position) {
+      return nearestAvailableHabitat(this.habitats, time, position)?.id === habitatId;
+    }
+    recordAttempt(habitatId, retryAt) {
+      const habitat = this.habitats.find((candidate) => candidate.id === habitatId);
+      if (habitat) habitat.retryAt = retryAt;
+    }
+    getKnownHabitats() {
+      return this.habitats.map((habitat) => ({ ...habitat, position: { ...habitat.position } }));
+    }
+  };
+  function nearestAvailableHabitat(habitats, time, position) {
+    return habitats.filter((habitat) => (habitat.retryAt ?? 0) <= time).sort((first, second) => distance8(first.position, position) - distance8(second.position, position))[0];
+  }
+  function distance8(first, second) {
+    return Math.hypot(first.x - second.x, first.y - second.y);
+  }
+  function isActive4(minuteOfDay, start2, end) {
+    if (start2 === end) return true;
+    if (start2 < end) return minuteOfDay >= start2 && minuteOfDay < end;
+    return minuteOfDay >= start2 || minuteOfDay < end;
+  }
+
+  // src/physical/HandUseRules.ts
+  var HandUseRules = class {
+    constructor(possession) {
+      this.possession = possession;
+    }
+    hold(item, hand) {
+      if (!this.possession.has(item.id)) {
+        throw new Error(`Item ${item.id} is not possessed.`);
+      }
+      if (this.occupied(hand)) {
+        throw new Error(`${hand} hand is already occupied.`);
+      }
+      const other = hand === "left" ? "right" : "left";
+      if (item.physical.carryHands === 2 && this.occupied(other)) {
+        throw new Error(`Item ${item.id} requires both hands.`);
+      }
+      this.possession.move(item.id, { type: "hand", hand });
+    }
+    occupied(hand) {
+      return this.possession.getAll().some((entry) => {
+        if (entry.location.type !== "hand") return false;
+        if (entry.location.hand === hand) return true;
+        return entry.item.physical.carryHands === 2;
+      });
+    }
+    canUse(item) {
+      const possession = this.possession.get(item.id);
+      if (!possession) return false;
+      const required = item.physical.useHands;
+      if (possession.location.type === "hand") {
+        if (required === 1) return true;
+        const other = possession.location.hand === "left" ? "right" : "left";
+        return !this.occupied(other);
+      }
+      const freeHands = ["left", "right"].filter(
+        (hand) => !this.occupied(hand)
+      ).length;
+      return freeHands >= required;
+    }
+  };
+
+  // src/planning/HuntingExecution.ts
+  var HUNT_DURATION_MINUTES = 20;
+  var BUTCHER_DURATION_MINUTES = 15;
+  var ACTION_TOLERANCE_MINUTES = 2;
+  var HUNTING_RANGE_METRES = 1.5;
+  function registerHuntingHandlers(registry) {
+    if (!registry.has("hunt-hookcrest")) {
+      registry.register("hunt-hookcrest", huntHookcrest);
+    }
+    if (!registry.has("butcher-hookcrest")) {
+      registry.register("butcher-hookcrest", butcherHookcrest);
+    }
+  }
+  function huntHookcrest(plan, character, world2) {
+    const parameters = huntHookcrestGoalParameters(plan.goal);
+    if (!parameters) return { status: "failed" };
+    const activity = character.activities.find((candidate) => candidate.id === parameters.activityId);
+    if (!(activity instanceof HookcrestHuntingActivity)) return { status: "failed" };
+    if (!activity.expectsHunt(parameters.habitatId, world2.time, character.position)) {
+      return { status: "completed" };
+    }
+    const habitat = world2.hunting.getHabitat(parameters.habitatId, world2.time);
+    if (!habitat || habitat.speciesId !== parameters.speciesId || distance9(habitat.position, parameters.position) > 0.01 || distance9(character.position, habitat.position) > HUNTING_RANGE_METRES) return { status: "failed" };
+    const bow = character.physical.get(parameters.bowItemId)?.item;
+    if (!bow || bow.type !== "hunting-bow" || !new HandUseRules(character.physical).canUse(bow)) {
+      return { status: "failed" };
+    }
+    let elapsed = 0;
+    let completed = false;
+    return startAction(
+      character,
+      world2,
+      "hunt-hookcrest",
+      HUNT_DURATION_MINUTES,
+      ACTION_TOLERANCE_MINUTES,
+      () => completed,
+      {
+        interruptionPolicy: "interruptible",
+        onTick: (minutes) => {
+          if (completed) return;
+          const currentBow = character.physical.get(parameters.bowItemId)?.item;
+          if (!currentBow || !new HandUseRules(character.physical).canUse(currentBow) || distance9(character.position, habitat.position) > HUNTING_RANGE_METRES) return;
+          elapsed += minutes;
+          if (elapsed < HUNT_DURATION_MINUTES) return;
+          const result = world2.hunting.attempt(parameters.habitatId, world2.time, world2.chance);
+          activity.recordAttempt(parameters.habitatId, result.retryAt);
+          if (result.status === "caught") {
+            const carcassId = `${character.id}-hookcrest-carcass-${world2.time}`;
+            character.physical.add({
+              id: carcassId,
+              type: "hookcrest-carcass",
+              size: "medium",
+              physical: { carryHands: 1, useHands: 1 }
+            }, { type: "equipped", slot: "game-belt" });
+            world2.ownership.setOwner(carcassId, character.id);
+            logChance(world2, character, result.chance.probability, result.chance.roll, "caught");
+          } else if (result.status === "escaped") {
+            logChance(world2, character, result.chance.probability, result.chance.roll, "escaped");
+          } else {
+            logSimulation(world2, "decision", `${character.name} finds no available Hookcrest at ${parameters.habitatId}`);
+          }
+          completed = true;
+        }
+      }
+    );
+  }
+  function butcherHookcrest(plan, character, world2) {
+    const parameters = butcherHookcrestGoalParameters(plan.goal);
+    if (!parameters) return { status: "failed" };
+    const activity = character.activities.find((candidate) => candidate.id === parameters.activityId);
+    if (!(activity instanceof HookcrestHuntingActivity)) return { status: "failed" };
+    const carcass = character.physical.get(parameters.carcassItemId);
+    const facility = world2.getObject(parameters.facilityId);
+    const actionPoint = world2.getActionPoint(parameters.actionPointId);
+    if (carcass?.item.type !== "hookcrest-carcass" || facility?.facility?.type !== "butchering-table" || facility.containerId !== parameters.outputContainerId || !actionPoint || !isAtActionPoint(character.position, actionPoint)) return { status: "failed" };
+    let elapsed = 0;
+    let completed = false;
+    return startAction(
+      character,
+      world2,
+      "butcher-hookcrest",
+      BUTCHER_DURATION_MINUTES,
+      ACTION_TOLERANCE_MINUTES,
+      () => completed,
+      {
+        interruptionPolicy: "interruptible",
+        onTick: (minutes) => {
+          if (completed || !isAtActionPoint(character.position, actionPoint)) return;
+          elapsed += minutes;
+          if (elapsed < BUTCHER_DURATION_MINUTES) return;
+          if (!character.physical.has(parameters.carcassItemId)) return;
+          character.physical.remove(parameters.carcassItemId);
+          for (let index = 1; index <= parameters.yieldCount; index++) {
+            const id = `${character.id}-hookcrest-meat-${world2.time}-${index}`;
+            character.physical.add({
+              id,
+              type: "food",
+              size: "small",
+              physical: { carryHands: 1, useHands: 1 },
+              food: { kind: "meat", stomachVolume: 20 }
+            }, { type: "container", containerId: parameters.outputContainerId });
+            world2.ownership.setOwner(id, character.id);
+          }
+          logSimulation(
+            world2,
+            "event",
+            `${character.name} butchers a Hookcrest into ${parameters.yieldCount} portions of raw meat`,
+            { actorIds: [character.id], entityIds: [parameters.facilityId], type: "hunting" }
+          );
+          completed = true;
+        }
+      }
+    );
+  }
+  function logChance(world2, character, probability, roll, outcome) {
+    logSimulation(
+      world2,
+      "event",
+      `${character.name} hunts a Hookcrest: ${outcome}; chance ${(probability * 100).toFixed(0)}%, roll ${roll.toFixed(3)}`,
+      { actorIds: [character.id], type: "chance" }
+    );
+  }
+  function distance9(first, second) {
+    return Math.hypot(first.x - second.x, first.y - second.y);
+  }
+
   // src/planning/PlanExecutor.ts
   var PlanExecutor = class {
     constructor(commerce, social, accessibility, movement, executionRegistry = new PlanExecutionRegistry()) {
@@ -13934,6 +14384,7 @@
       registerStagedWorkplaceHandlers(this.executionRegistry, this.accessibility);
       registerWorkplaceProcurementHandlers(this.executionRegistry, this.social, this.movement);
       registerAgricultureHandlers(this.executionRegistry);
+      registerHuntingHandlers(this.executionRegistry);
     }
     execute(plan, character, world2) {
       if (plan.satisfied || plan.completed || plan.failed || character.currentAction) return;
@@ -14655,12 +15106,12 @@
       }
       const dx = character.position.x - target.x;
       const dy = character.position.y - target.y;
-      const distance8 = Math.hypot(dx, dy);
-      if (distance8 <= safeRange) {
+      const distance10 = Math.hypot(dx, dy);
+      if (distance10 <= safeRange) {
         character.movementTarget = void 0;
         return;
       }
-      const scale = safeRange / distance8;
+      const scale = safeRange / distance10;
       character.movementTarget = {
         x: target.x + dx * scale,
         y: target.y + dy * scale
@@ -14669,7 +15120,7 @@
     update(character, world2, deltaTime) {
       const rangeRequest = this.rangeRequests.get(character.id);
       if (rangeRequest) {
-        const distance8 = Math.hypot(
+        const distance10 = Math.hypot(
           rangeRequest.target.x - character.position.x,
           rangeRequest.target.y - character.position.y
         );
@@ -14678,12 +15129,12 @@
           rangeRequest.target,
           "interaction"
         );
-        if (distance8 <= rangeRequest.range + 1e-6 && physicallyReachable) {
+        if (distance10 <= rangeRequest.range + 1e-6 && physicallyReachable) {
           character.movementTarget = void 0;
           this.clearMovementState(character.id);
           return true;
         }
-        if (distance8 <= rangeRequest.range + 1e-6 && !physicallyReachable) {
+        if (distance10 <= rangeRequest.range + 1e-6 && !physicallyReachable) {
           this.learnNearbyObjectiveConstraints(character, world2);
         }
         const approach = this.getOrCreateRangeApproach(character, rangeRequest);
@@ -14706,9 +15157,9 @@
         const waypoint = route.waypoints[route.nextWaypoint];
         const dx = waypoint.x - character.position.x;
         const dy = waypoint.y - character.position.y;
-        const distance8 = Math.hypot(dx, dy);
-        if (distance8 <= ARRIVAL_DISTANCE) {
-          if (distance8 > 1e-9 && !this.moveWithPhysicalValidation(character, waypoint, world2)) {
+        const distance10 = Math.hypot(dx, dy);
+        if (distance10 <= ARRIVAL_DISTANCE) {
+          if (distance10 > 1e-9 && !this.moveWithPhysicalValidation(character, waypoint, world2)) {
             this.routes.delete(character.id);
             this.rangeApproaches.delete(character.id);
             return false;
@@ -14716,10 +15167,10 @@
           route.nextWaypoint++;
           continue;
         }
-        const stepDistance = Math.min(remainingStep, distance8);
+        const stepDistance = Math.min(remainingStep, distance10);
         const nextPosition = {
-          x: character.position.x + dx / distance8 * stepDistance,
-          y: character.position.y + dy / distance8 * stepDistance
+          x: character.position.x + dx / distance10 * stepDistance,
+          y: character.position.y + dy / distance10 * stepDistance
         };
         if (!this.moveWithPhysicalValidation(character, nextPosition, world2)) {
           this.routes.delete(character.id);
@@ -14727,7 +15178,7 @@
           return false;
         }
         remainingStep = Math.max(0, remainingStep - stepDistance);
-        if (stepDistance >= distance8 - 1e-9) {
+        if (stepDistance >= distance10 - 1e-9) {
           route.nextWaypoint++;
         }
       }
@@ -14797,8 +15248,8 @@
         character.position = { ...target };
         return true;
       }
-      const distance8 = Math.hypot(target.x - start2.x, target.y - start2.y);
-      const samples = Math.max(1, Math.ceil(distance8 / PHYSICAL_STEP_SAMPLE_METRES));
+      const distance10 = Math.hypot(target.x - start2.x, target.y - start2.y);
+      const samples = Math.max(1, Math.ceil(distance10 / PHYSICAL_STEP_SAMPLE_METRES));
       let lastSafe = { ...start2 };
       for (let sample = 1; sample <= samples; sample++) {
         const ratio = sample / samples;
@@ -15018,11 +15469,11 @@
     tryHail(pursuit, world2) {
       const target = this.resolvePhysicalTarget(pursuit, world2);
       if (!target) return;
-      const distance8 = Math.hypot(
+      const distance10 = Math.hypot(
         target.position.x - pursuit.pursuer.position.x,
         target.position.y - pursuit.pursuer.position.y
       );
-      if (isWithinConversationRange(distance8)) return;
+      if (isWithinConversationRange(distance10)) return;
       if (!target.movementTarget) return;
       if (this.isMovingToward(target, pursuit.pursuer)) return;
       if (target.socialInstruction?.type === "wait" && target.socialInstruction.personId === pursuit.pursuer.id) return;
@@ -15031,7 +15482,7 @@
       const familiarity = callerKnowsTarget && targetKnowsCaller ? "mutual-known" : callerKnowsTarget ? "named" : "stranger";
       const baseHailRange = familiarity === "mutual-known" ? MUTUAL_KNOWN_HAIL_RANGE_METRES : familiarity === "named" ? NAMED_HAIL_RANGE_METRES : STRANGER_HAIL_RANGE_METRES;
       const hailRange = baseHailRange * this.assertivenessRangeMultiplier(pursuit.pursuer);
-      if (distance8 > hailRange) return;
+      if (distance10 > hailRange) return;
       const hailKey = `${pursuit.pursuer.id}:${target.id}`;
       const previousHail = this.lastHailAt.get(hailKey);
       if (previousHail !== void 0 && world2.time - previousHail < HAIL_COOLDOWN_MINUTES) return;
@@ -16027,16 +16478,16 @@
   }
   function personTargetFromMemory(memory, character) {
     const position = memory.context?.position;
-    if (!isPosition14(position)) return void 0;
+    if (!isPosition15(position)) return void 0;
     const personId = memory.context?.identifiedPersonId;
-    const distance8 = Math.hypot(position.x - character.position.x, position.y - character.position.y);
+    const distance10 = Math.hypot(position.x - character.position.x, position.y - character.position.y);
     if (typeof personId === "string") {
       return {
         type: "person",
         personId,
         knowledge: "known",
         position: { ...position },
-        distance: distance8
+        distance: distance10
       };
     }
     return {
@@ -16044,7 +16495,7 @@
       observationId: memory.subjectId,
       knowledge: "observed",
       position: { ...position },
-      distance: distance8
+      distance: distance10
     };
   }
   function rememberUnhelpfulInquiry(character, target, query, time) {
@@ -16090,7 +16541,7 @@
     logSimulation(world2, "event", `${character.name} starts ${type}; expected ${expectedDuration}m`);
     return { status: "started" };
   }
-  function isPosition14(value) {
+  function isPosition15(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -16100,7 +16551,7 @@
   }
 
   // src/services/ServiceProviderExecution.ts
-  var MINUTES_PER_DAY19 = 24 * 60;
+  var MINUTES_PER_DAY20 = 24 * 60;
   var MORNING_RECONSIDERATION_MINUTE3 = 6 * 60;
   var CLOSED_PROVIDER_RETRY_MINUTES = 30;
   function registerServiceProviderHandlers(registry, social, movement) {
@@ -16164,11 +16615,11 @@
   function goToServiceProvider(plan, character, world2, movement) {
     const target = plan.target?.type === "location" ? resolveSelectedServiceProviderTarget(plan, character, world2.time, world2.minuteOfDay) : resolveServiceProviderTarget(plan, character, world2.time, world2.minuteOfDay);
     if (!target) return { status: "failed" };
-    const distance8 = Math.hypot(
+    const distance10 = Math.hypot(
       target.position.x - character.position.x,
       target.position.y - character.position.y
     );
-    if (distance8 < 0.1) return { status: "completed" };
+    if (distance10 < 0.1) return { status: "completed" };
     const expectedDuration = movement.estimateTravelDuration(character, target.position, world2);
     if (expectedDuration === void 0) return { status: "failed" };
     movement.start(character, target.position);
@@ -16320,13 +16771,13 @@
     );
   }
   function nextMorningRetryAt2(time, minuteOfDay) {
-    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY19 + MINUTES_PER_DAY19) % MINUTES_PER_DAY19;
-    const delta = normalized < MORNING_RECONSIDERATION_MINUTE3 ? MORNING_RECONSIDERATION_MINUTE3 - normalized : MINUTES_PER_DAY19 - normalized + MORNING_RECONSIDERATION_MINUTE3;
+    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY20 + MINUTES_PER_DAY20) % MINUTES_PER_DAY20;
+    const delta = normalized < MORNING_RECONSIDERATION_MINUTE3 ? MORNING_RECONSIDERATION_MINUTE3 - normalized : MINUTES_PER_DAY20 - normalized + MORNING_RECONSIDERATION_MINUTE3;
     return time + Math.max(1, delta);
   }
   function bestKnownProviderLocation(character, providerId) {
     if (providerId === character.id) return { ...character.position };
-    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition15(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
+    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition16(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
     const known = character.knowledge.filter(
       (knowledge) => knowledge.type === "person-location" && knowledge.subjectId === providerId && knowledge.polarity === "positive" && knowledge.position !== void 0
     ).sort((first, second) => second.learnedAt - first.learnedAt)[0];
@@ -16357,7 +16808,7 @@
       }
     });
   }
-  function isPosition15(value) {
+  function isPosition16(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -16505,12 +16956,12 @@
   function progressPreparedMealCustomer(plan, buyer, request, world2, movement) {
     const fulfilment = request.fulfilment;
     if (!fulfilment?.resourceId || !fulfilment.resourcePosition) return;
-    const distance8 = Math.hypot(
+    const distance10 = Math.hypot(
       fulfilment.resourcePosition.x - buyer.position.x,
       fulfilment.resourcePosition.y - buyer.position.y
     );
     if (fulfilment.stage === "awaiting-seat") {
-      if (distance8 > 0.1) {
+      if (distance10 > 0.1) {
         movement.start(buyer, fulfilment.resourcePosition);
         return;
       }
@@ -17011,7 +17462,7 @@
   function getSelectedPlace(character, plan) {
     const selectedId = typeof plan.executionState?.servicePlaceId === "string" ? plan.executionState.servicePlaceId : plan.target?.type === "location" && typeof plan.target.subjectId === "string" ? plan.target.subjectId : void 0;
     if (!selectedId) return void 0;
-    return character.memory.getByType("place-observed").filter((memory) => memory.subjectId === selectedId || memory.context?.knownPlaceId === selectedId).filter((memory) => isPosition16(memory.context?.position)).map((memory) => ({ id: selectedId, position: { ...memory.context.position } }))[0];
+    return character.memory.getByType("place-observed").filter((memory) => memory.subjectId === selectedId || memory.context?.knownPlaceId === selectedId).filter((memory) => isPosition17(memory.context?.position)).map((memory) => ({ id: selectedId, position: { ...memory.context.position } }))[0];
   }
   function hasCurrentLocationKnowledge2(character, providerId) {
     return character.knowledge.some(
@@ -17020,13 +17471,13 @@
   }
   function personTargetFromMemory2(memory, character) {
     const position = memory.context?.position;
-    if (!isPosition16(position)) return void 0;
+    if (!isPosition17(position)) return void 0;
     const personId = memory.context?.identifiedPersonId;
-    const distance8 = Math.hypot(position.x - character.position.x, position.y - character.position.y);
+    const distance10 = Math.hypot(position.x - character.position.x, position.y - character.position.y);
     if (typeof personId === "string") {
-      return { type: "person", personId, knowledge: "known", position: { ...position }, distance: distance8 };
+      return { type: "person", personId, knowledge: "known", position: { ...position }, distance: distance10 };
     }
-    return { type: "person", observationId: memory.subjectId, knowledge: "observed", position: { ...position }, distance: distance8 };
+    return { type: "person", observationId: memory.subjectId, knowledge: "observed", position: { ...position }, distance: distance10 };
   }
   function asKnowledgeQuery2(value) {
     if (!value || typeof value !== "object") return void 0;
@@ -17049,7 +17500,7 @@
     logSimulation(world2, "event", `${character.name} starts ${type}; expected ${expectedDuration}m`);
     return { status: "started" };
   }
-  function isPosition16(value) {
+  function isPosition17(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -17412,7 +17863,7 @@
     );
   }
   function bestKnownPersonLocation(character, personId) {
-    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === personId).filter((memory) => isPosition17(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
+    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === personId).filter((memory) => isPosition18(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
     if (observed) return { ...observed.context.position };
     const knowledge = character.knowledge.filter(
       (item) => item.type === "person-location" && item.subjectId === personId && item.polarity === "positive" && item.position !== void 0
@@ -17456,7 +17907,7 @@
     logSimulation(world2, "event", `${character.name} starts ${type}; expected ${expectedDuration}m`);
     return { status: "started" };
   }
-  function isPosition17(value) {
+  function isPosition18(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -17804,8 +18255,8 @@
 
   // src/scenarios/DefaultScenario.ts
   var HOT_HELD_STEW_SHELF_LIFE_MINUTES = 18 * 60;
-  function createDefaultScenario() {
-    const world2 = new World(8 * 60);
+  function createDefaultScenario(options = {}) {
+    const world2 = new World(8 * 60, new SeededChanceSource(options.chanceSeed ?? 1));
     const layout = defaultVillageLayout;
     for (const feature of layout.mapFeatures) world2.addMapFeature(feature);
     const tavernPosition = layout.tavern.position;
@@ -18257,6 +18708,7 @@
     registry.registerMany(socialPlans);
     registry.registerMany(doorPlans);
     registry.registerMany(workplacePlans);
+    registry.registerMany(huntingPlans);
     const planner = new Planner(registry);
     const brain = new Brain(planner);
     const perception = new PerceptionSystem();
@@ -18444,9 +18896,119 @@
     });
   }
 
+  // src/scenarios/DefaultHunter.ts
+  var DEFAULT_HUNTER_ID = "isaac";
+  var DEFAULT_HUNTER_HOME_ID = "isaac-home";
+  var DEFAULT_HUNTING_ACTIVITY_ID = "isaac-hookcrest-hunting";
+  var DEFAULT_HUNTING_BOW_ID = "isaac-hunting-bow";
+  var DEFAULT_BUTCHERING_TABLE_ID = "village-butchering-table";
+  var DEFAULT_GAME_LARDER_ID = "isaac-game-larder";
+  function createDefaultHunter(world2, layout) {
+    const homeSite = layout.homes.isaac;
+    const hunter = new Character(DEFAULT_HUNTER_ID, "Isaac", { ...homeSite.position }, createPersonality({
+      frugality: 0.6,
+      caution: 0.7,
+      patience: 0.75,
+      conscientiousness: 0.75,
+      sociability: 0.35,
+      helpfulness: 0.6,
+      curiosity: 0.65,
+      assertiveness: 0.55,
+      integrity: 0.8,
+      emotionalStability: 0.8
+    }));
+    hunter.homeId = DEFAULT_HUNTER_HOME_ID;
+    hunter.hunger = 0;
+    hunter.thirst = 0;
+    hunter.tiredness = 25;
+    hunter.money = 10;
+    const home = createHouse({
+      id: DEFAULT_HUNTER_HOME_ID,
+      ownerId: hunter.id,
+      position: { ...homeSite.position },
+      frontDoorSide: homeSite.frontDoorSide
+    });
+    const frontDoorId = `${home.id}-front-door`;
+    const insidePosition = home.physicalFootprint ? getDoorInsidePosition(home.physicalFootprint, frontDoorId) : void 0;
+    if (!insidePosition) throw new Error("Isaac's home requires an inside-operable front door.");
+    hunter.addActivity(new DoorScheduleActivity({
+      id: "isaac-home-front-door-hours",
+      doorId: frontDoorId,
+      placeId: home.id,
+      insidePosition,
+      opensAt: 6 * 60,
+      closesAt: 22 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      initialState: "open"
+    }));
+    hunter.physical.add({
+      id: DEFAULT_HUNTING_BOW_ID,
+      type: "hunting-bow",
+      size: "medium",
+      physical: { carryHands: 1, useHands: 2 }
+    }, { type: "equipped", slot: "bow-sling" });
+    hunter.physical.add({
+      id: "isaac-waterskin",
+      type: "water-container",
+      size: "small",
+      physical: { carryHands: 1, useHands: 1 },
+      liquidContainer: { capacity: 1, contents: { type: "water", amount: 1 } }
+    }, { type: "equipped", slot: "waterskin" });
+    hunter.addActivity(new WaterPreparationActivity("isaac-water-preparation"));
+    const facility = createFacility({
+      id: DEFAULT_BUTCHERING_TABLE_ID,
+      type: "butchering-table",
+      placeId: "village-butcher-site",
+      position: { ...layout.butcherSite }
+    });
+    const butcheringTable = {
+      ...facility,
+      ownerId: hunter.id,
+      containerId: DEFAULT_GAME_LARDER_ID
+    };
+    for (const habitat of layout.hookcrestHabitats) {
+      world2.hunting.registerHabitat({
+        id: habitat.id,
+        speciesId: "hookcrest",
+        position: { ...habitat.position },
+        capacity: 1,
+        successChance: 0.65,
+        recoveryMinutes: 8 * 60,
+        disturbanceMinutes: 45
+      });
+    }
+    hunter.addActivity(new HookcrestHuntingActivity({
+      id: DEFAULT_HUNTING_ACTIVITY_ID,
+      bowItemId: DEFAULT_HUNTING_BOW_ID,
+      habitats: layout.hookcrestHabitats.map((habitat) => ({
+        id: habitat.id,
+        speciesId: "hookcrest",
+        position: { ...habitat.position }
+      })),
+      preparationFacilityId: butcheringTable.id,
+      preparationActionPointId: facilityActionPointId(butcheringTable.id),
+      preparationPosition: { ...layout.butcherSite },
+      outputContainerId: DEFAULT_GAME_LARDER_ID,
+      meatYield: 3,
+      targetMeatStock: 3,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      activeFrom: 8 * 60,
+      activeUntil: 17 * 60,
+      priority: 46
+    }));
+    world2.addObject(home);
+    world2.addObject(butcheringTable);
+    return {
+      hunter,
+      home,
+      butcheringTable,
+      habitatIds: layout.hookcrestHabitats.map((habitat) => habitat.id)
+    };
+  }
+
   // src/scenarios/DefaultVillageScenario.ts
-  function createDefaultVillageScenario() {
-    const scenario = createDefaultScenario();
+  function createDefaultVillageScenario(options = {}) {
+    const scenario = createDefaultScenario(options);
     scenario.world.dayNightEnvironmentEnabled = true;
     const bob = scenario.world.characters.find((character) => character.id === "bob");
     if (!bob) throw new Error("Default village requires Bob before the mill workplace is composed.");
@@ -18472,6 +19034,8 @@
     );
     configureDefaultFarmerFieldWork(scenario.world, charlie);
     configureDefaultFarmerFieldWork(scenario.world, helenResidentSetup.farmer);
+    const hunterSetup = createDefaultHunter(scenario.world, defaultVillageLayout);
+    scenario.world.addCharacter(hunterSetup.hunter);
     const alice = scenario.world.characters.find((character) => character.id === "alice");
     const emma = scenario.world.characters.find((character) => character.id === "emma");
     const dave = scenario.world.characters.find((character) => character.id === "dave");
@@ -18601,6 +19165,19 @@
       footwear: "boots",
       footwearColor: "brown"
     });
+    setCharacterAppearance(hunterSetup.hunter, {
+      bodyType: "male",
+      hairStyle: "short-bangs",
+      hairColor: "auburn",
+      lowerBody: "pants",
+      lowerBodyColor: "green",
+      torso: "shirt",
+      torsoColor: "charcoal",
+      outerwear: "vest",
+      outerwearColor: "ochre",
+      footwear: "boots",
+      footwearColor: "dark-brown"
+    });
     return {
       ...scenario,
       agriculturalYearSetup,
@@ -18609,7 +19186,8 @@
       farmerSetup,
       helenFarmerSetup,
       millSetup,
-      merchantSetup
+      merchantSetup,
+      hunterSetup
     };
   }
 
@@ -18617,7 +19195,7 @@
   var SIMULATION_VIEW_SCHEMA_VERSION = 1;
 
   // src/view/SimulationViewAdapter.ts
-  var MINUTES_PER_DAY20 = 24 * 60;
+  var MINUTES_PER_DAY21 = 24 * 60;
   var SimulationViewAdapter = class {
     frame(world2) {
       return {
@@ -18636,8 +19214,8 @@
     }
     time(world2) {
       const absoluteMinute = world2.startMinuteOfDay + world2.time;
-      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY20) + 1;
-      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY20;
+      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY21) + 1;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY21;
       return {
         day,
         hour: Math.floor(minuteOfDay / 60),
@@ -19228,7 +19806,7 @@
       duration,
       sourceCommit: null,
       packageVersion: null,
-      seed: null
+      seed: world.chanceSeed
     });
     diagnosticRecorder = void 0;
     diagnosticStartedAtTick = void 0;
