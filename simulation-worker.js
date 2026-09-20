@@ -10451,6 +10451,21 @@
       cost: 0
     },
     {
+      id: "dress-hookcrest",
+      name: "Dress Hookcrest",
+      achieves: { type: "dressHookcrest" },
+      prerequisites: [],
+      getPrerequisites: (goal) => locationPrerequisite(dressHookcrestGoalParameters(goal)),
+      resolveTarget: (_goal, _context, prerequisiteTargets) => inheritFirstLocationTarget(prerequisiteTargets),
+      isAvailable: (context, goal) => {
+        const parameters = dressHookcrestGoalParameters(goal);
+        return parameters !== void 0 && context.character.physical.has(parameters.carcassItemId);
+      },
+      duration: 10,
+      risk: 1,
+      cost: 0
+    },
+    {
       id: "butcher-hookcrest",
       name: "Butcher Hookcrest",
       achieves: { type: "butcherHookcrest" },
@@ -10469,13 +10484,27 @@
   function huntHookcrestGoalParameters(goal) {
     if (!goal || goal.type !== "huntHookcrest" || !goal.parameters) return void 0;
     const p = goal.parameters;
-    if (typeof p.activityId !== "string" || typeof p.habitatId !== "string" || p.speciesId !== "hookcrest" || !isPosition10(p.position) || typeof p.bowItemId !== "string") return void 0;
+    if (typeof p.activityId !== "string" || typeof p.habitatId !== "string" || p.speciesId !== "hookcrest" || !isPosition10(p.position) || typeof p.bowItemId !== "string" || typeof p.carrierSlot !== "string") return void 0;
     return {
       activityId: p.activityId,
       habitatId: p.habitatId,
       speciesId: p.speciesId,
       position: { ...p.position },
-      bowItemId: p.bowItemId
+      bowItemId: p.bowItemId,
+      carrierSlot: p.carrierSlot
+    };
+  }
+  function dressHookcrestGoalParameters(goal) {
+    if (!goal || goal.type !== "dressHookcrest" || !goal.parameters) return void 0;
+    const p = goal.parameters;
+    if (typeof p.activityId !== "string" || typeof p.carcassItemId !== "string" || typeof p.carrierSlot !== "string" || typeof p.facilityId !== "string" || typeof p.actionPointId !== "string" || !isPosition10(p.position)) return void 0;
+    return {
+      activityId: p.activityId,
+      carcassItemId: p.carcassItemId,
+      carrierSlot: p.carrierSlot,
+      facilityId: p.facilityId,
+      actionPointId: p.actionPointId,
+      position: { ...p.position }
     };
   }
   function butcherHookcrestGoalParameters(goal) {
@@ -14092,6 +14121,9 @@
       this.options = options;
       this.name = "Hunt Hookcrests";
       if (options.habitats.length === 0) throw new Error("Hookcrest hunting requires a known habitat.");
+      if (options.gameCarrierSlots.length === 0 || new Set(options.gameCarrierSlots).size !== options.gameCarrierSlots.length) {
+        throw new Error("Hookcrest hunting requires distinct game carrier slots.");
+      }
       if (!Number.isInteger(options.meatYield) || options.meatYield <= 0) {
         throw new Error("Hookcrest meat yield must be a positive integer.");
       }
@@ -14106,19 +14138,61 @@
     }
     getIntents({ character, time }) {
       const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY19;
-      if (!isActive4(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
-      const carcass = character.physical.getAll().find(
-        (possession) => possession.item.type === "hookcrest-carcass"
+      const carriedGame = character.physical.getAll().filter(
+        (possession) => possession.location.type === "equipped" && this.options.gameCarrierSlots.includes(possession.location.slot) && (possession.item.type === "hookcrest-carcass" || possession.item.type === "dressed-hookcrest-carcass")
       );
-      if (carcass) {
+      const rawCarcasses = carriedGame.filter((possession) => possession.item.type === "hookcrest-carcass");
+      const dressedCarcasses = carriedGame.filter((possession) => possession.item.type === "dressed-hookcrest-carcass");
+      const availableCarrierSlot = this.availableCarrierSlot(character);
+      const habitat = isActive4(minuteOfDay, this.options.activeFrom, this.options.activeUntil) && availableCarrierSlot ? nearestAvailableHabitat(this.habitats, time, character.position) : void 0;
+      if (habitat) {
         return [{
-          id: `${character.id}:activity:${this.id}:butcher:${carcass.item.id}`,
+          id: `${character.id}:activity:${this.id}:hunt:${habitat.id}`,
+          source: { type: "activity", id: this.id },
+          goal: {
+            type: "huntHookcrest",
+            parameters: {
+              activityId: this.id,
+              habitatId: habitat.id,
+              speciesId: habitat.speciesId,
+              position: { ...habitat.position },
+              bowItemId: this.options.bowItemId,
+              carrierSlot: availableCarrierSlot
+            }
+          },
+          priority: this.options.priority ?? 46
+        }];
+      }
+      const rawCarcass = rawCarcasses[0];
+      if (rawCarcass && rawCarcass.location.type === "equipped") {
+        return [{
+          id: `${character.id}:activity:${this.id}:dress:${rawCarcass.item.id}`,
+          source: { type: "activity", id: this.id },
+          goal: {
+            type: "dressHookcrest",
+            parameters: {
+              activityId: this.id,
+              carcassItemId: rawCarcass.item.id,
+              carrierSlot: rawCarcass.location.slot,
+              facilityId: this.options.preparationFacilityId,
+              actionPointId: this.options.preparationActionPointId,
+              position: { ...this.options.preparationPosition }
+            }
+          },
+          priority: (this.options.priority ?? 46) + 6
+        }];
+      }
+      const meatStock = character.physical.getContents(this.options.outputContainerId).filter((possession) => possession.item.food?.kind === "meat").length;
+      const dressedCarcass = dressedCarcasses[0];
+      if (dressedCarcass && meatStock < this.options.targetMeatStock) {
+        return [{
+          id: `${character.id}:activity:${this.id}:butcher:${dressedCarcass.item.id}`,
           source: { type: "activity", id: this.id },
           goal: {
             type: "butcherHookcrest",
             parameters: {
               activityId: this.id,
-              carcassItemId: carcass.item.id,
+              carcassItemId: dressedCarcass.item.id,
               facilityId: this.options.preparationFacilityId,
               actionPointId: this.options.preparationActionPointId,
               position: { ...this.options.preparationPosition },
@@ -14126,33 +14200,28 @@
               yieldCount: this.options.meatYield
             }
           },
-          priority: (this.options.priority ?? 46) + 6
+          priority: (this.options.priority ?? 46) + 5
         }];
       }
-      const meatStock = character.physical.getContents(this.options.outputContainerId).filter((possession) => possession.item.food?.kind === "meat").length;
-      if (meatStock >= this.options.targetMeatStock) return [];
-      const bow = character.physical.get(this.options.bowItemId);
-      if (!bow || bow.location.type !== "hand" && bow.location.type !== "equipped") return [];
-      const habitat = nearestAvailableHabitat(this.habitats, time, character.position);
-      if (!habitat) return [];
-      return [{
-        id: `${character.id}:activity:${this.id}:hunt:${habitat.id}`,
-        source: { type: "activity", id: this.id },
-        goal: {
-          type: "huntHookcrest",
-          parameters: {
-            activityId: this.id,
-            habitatId: habitat.id,
-            speciesId: habitat.speciesId,
-            position: { ...habitat.position },
-            bowItemId: this.options.bowItemId
-          }
-        },
-        priority: this.options.priority ?? 46
-      }];
+      const expeditionHasStarted = this.habitats.some((candidate) => candidate.retryAt !== void 0);
+      if (expeditionHasStarted && distance8(character.position, this.options.homePosition) > 2) {
+        return [{
+          id: `${character.id}:activity:${this.id}:return-home`,
+          source: { type: "activity", id: this.id },
+          goal: {
+            type: "atLocation",
+            parameters: {
+              subjectId: this.options.homeSubjectId,
+              position: { ...this.options.homePosition }
+            }
+          },
+          priority: this.options.priority ?? 46
+        }];
+      }
+      return [];
     }
-    expectsHunt(habitatId, time, position) {
-      return nearestAvailableHabitat(this.habitats, time, position)?.id === habitatId;
+    expectsHunt(habitatId, carrierSlot, time, character) {
+      return this.availableCarrierSlot(character) === carrierSlot && nearestAvailableHabitat(this.habitats, time, character.position)?.id === habitatId;
     }
     recordAttempt(habitatId, retryAt) {
       const habitat = this.habitats.find((candidate) => candidate.id === habitatId);
@@ -14160,6 +14229,10 @@
     }
     getKnownHabitats() {
       return this.habitats.map((habitat) => ({ ...habitat, position: { ...habitat.position } }));
+    }
+    availableCarrierSlot(character) {
+      const occupied = new Set(character.physical.getAll().filter((possession) => possession.location.type === "equipped").map((possession) => possession.location.type === "equipped" ? possession.location.slot : ""));
+      return this.options.gameCarrierSlots.find((slot) => !occupied.has(slot));
     }
   };
   function nearestAvailableHabitat(habitats, time, position) {
@@ -14217,6 +14290,7 @@
 
   // src/planning/HuntingExecution.ts
   var HUNT_DURATION_MINUTES = 20;
+  var DRESS_DURATION_MINUTES = 10;
   var BUTCHER_DURATION_MINUTES = 15;
   var ACTION_TOLERANCE_MINUTES = 2;
   var HUNTING_RANGE_METRES = 1.5;
@@ -14227,13 +14301,16 @@
     if (!registry.has("butcher-hookcrest")) {
       registry.register("butcher-hookcrest", butcherHookcrest);
     }
+    if (!registry.has("dress-hookcrest")) {
+      registry.register("dress-hookcrest", dressHookcrest);
+    }
   }
   function huntHookcrest(plan, character, world2) {
     const parameters = huntHookcrestGoalParameters(plan.goal);
     if (!parameters) return { status: "failed" };
     const activity = character.activities.find((candidate) => candidate.id === parameters.activityId);
     if (!(activity instanceof HookcrestHuntingActivity)) return { status: "failed" };
-    if (!activity.expectsHunt(parameters.habitatId, world2.time, character.position)) {
+    if (!activity.expectsHunt(parameters.habitatId, parameters.carrierSlot, world2.time, character)) {
       return { status: "completed" };
     }
     const habitat = world2.hunting.getHabitat(parameters.habitatId, world2.time);
@@ -14268,7 +14345,7 @@
               type: "hookcrest-carcass",
               size: "medium",
               physical: { carryHands: 1, useHands: 1 }
-            }, { type: "equipped", slot: "game-belt" });
+            }, { type: "equipped", slot: parameters.carrierSlot });
             world2.ownership.setOwner(carcassId, character.id);
             logChance(world2, character, result.chance.probability, result.chance.roll, "caught");
           } else if (result.status === "escaped") {
@@ -14276,6 +14353,52 @@
           } else {
             logSimulation(world2, "decision", `${character.name} finds no available Hookcrest at ${parameters.habitatId}`);
           }
+          completed = true;
+        }
+      }
+    );
+  }
+  function dressHookcrest(plan, character, world2) {
+    const parameters = dressHookcrestGoalParameters(plan.goal);
+    if (!parameters) return { status: "failed" };
+    const activity = character.activities.find((candidate) => candidate.id === parameters.activityId);
+    if (!(activity instanceof HookcrestHuntingActivity)) return { status: "failed" };
+    const carcass = character.physical.get(parameters.carcassItemId);
+    const facility = world2.getObject(parameters.facilityId);
+    const actionPoint = world2.getActionPoint(parameters.actionPointId);
+    if (carcass?.item.type !== "hookcrest-carcass" || carcass.location.type !== "equipped" || carcass.location.slot !== parameters.carrierSlot || facility?.facility?.type !== "butchering-table" || !actionPoint || !isAtActionPoint(character.position, actionPoint)) return { status: "failed" };
+    let elapsed = 0;
+    let completed = false;
+    return startAction(
+      character,
+      world2,
+      "dress-hookcrest",
+      DRESS_DURATION_MINUTES,
+      ACTION_TOLERANCE_MINUTES,
+      () => completed,
+      {
+        interruptionPolicy: "interruptible",
+        onTick: (minutes) => {
+          if (completed || !isAtActionPoint(character.position, actionPoint)) return;
+          elapsed += minutes;
+          if (elapsed < DRESS_DURATION_MINUTES) return;
+          const latest = character.physical.get(parameters.carcassItemId);
+          if (latest?.item.type !== "hookcrest-carcass" || latest.location.type !== "equipped" || latest.location.slot !== parameters.carrierSlot) return;
+          character.physical.remove(parameters.carcassItemId);
+          const dressedId = `${character.id}-dressed-hookcrest-${world2.time}`;
+          character.physical.add({
+            id: dressedId,
+            type: "dressed-hookcrest-carcass",
+            size: "medium",
+            physical: { carryHands: 1, useHands: 1 }
+          }, { type: "equipped", slot: parameters.carrierSlot });
+          world2.ownership.setOwner(dressedId, character.id);
+          logSimulation(
+            world2,
+            "event",
+            `${character.name} plucks and dresses a Hookcrest carcass`,
+            { actorIds: [character.id], entityIds: [parameters.facilityId], type: "hunting" }
+          );
           completed = true;
         }
       }
@@ -14289,7 +14412,7 @@
     const carcass = character.physical.get(parameters.carcassItemId);
     const facility = world2.getObject(parameters.facilityId);
     const actionPoint = world2.getActionPoint(parameters.actionPointId);
-    if (carcass?.item.type !== "hookcrest-carcass" || facility?.facility?.type !== "butchering-table" || facility.containerId !== parameters.outputContainerId || !actionPoint || !isAtActionPoint(character.position, actionPoint)) return { status: "failed" };
+    if (carcass?.item.type !== "dressed-hookcrest-carcass" || facility?.facility?.type !== "butchering-table" || facility.containerId !== parameters.outputContainerId || !actionPoint || !isAtActionPoint(character.position, actionPoint)) return { status: "failed" };
     let elapsed = 0;
     let completed = false;
     return startAction(
@@ -18901,8 +19024,10 @@
   var DEFAULT_HUNTER_HOME_ID = "isaac-home";
   var DEFAULT_HUNTING_ACTIVITY_ID = "isaac-hookcrest-hunting";
   var DEFAULT_HUNTING_BOW_ID = "isaac-hunting-bow";
-  var DEFAULT_BUTCHERING_TABLE_ID = "village-butchering-table";
+  var DEFAULT_BUTCHERING_TABLE_ID = "isaac-butchering-table";
   var DEFAULT_GAME_LARDER_ID = "isaac-game-larder";
+  var DEFAULT_GAME_CARRIER_ID = "isaac-game-strap";
+  var DEFAULT_GAME_CARRIER_SLOTS = ["game-strap-1", "game-strap-2"];
   function createDefaultHunter(world2, layout) {
     const homeSite = layout.homes.isaac;
     const hunter = new Character(DEFAULT_HUNTER_ID, "Isaac", { ...homeSite.position }, createPersonality({
@@ -18922,12 +19047,28 @@
     hunter.thirst = 0;
     hunter.tiredness = 25;
     hunter.money = 10;
-    const home = createHouse({
+    const baseHome = createHouse({
       id: DEFAULT_HUNTER_HOME_ID,
       ownerId: hunter.id,
       position: { ...homeSite.position },
       frontDoorSide: homeSite.frontDoorSide
     });
+    const preparationPosition = { x: homeSite.position.x + 1, y: homeSite.position.y - 1 };
+    const facility = createFacility({
+      id: DEFAULT_BUTCHERING_TABLE_ID,
+      type: "butchering-table",
+      placeId: DEFAULT_HUNTER_HOME_ID,
+      position: { ...preparationPosition }
+    });
+    const butcheringTable = {
+      ...facility,
+      ownerId: hunter.id,
+      containerId: DEFAULT_GAME_LARDER_ID
+    };
+    const home = {
+      ...baseHome,
+      fixtures: [...baseHome.fixtures ?? [], butcheringTable]
+    };
     const frontDoorId = `${home.id}-front-door`;
     const insidePosition = home.physicalFootprint ? getDoorInsidePosition(home.physicalFootprint, frontDoorId) : void 0;
     if (!insidePosition) throw new Error("Isaac's home requires an inside-operable front door.");
@@ -18948,6 +19089,12 @@
       physical: { carryHands: 1, useHands: 2 }
     }, { type: "equipped", slot: "bow-sling" });
     hunter.physical.add({
+      id: DEFAULT_GAME_CARRIER_ID,
+      type: "game-strap",
+      size: "small",
+      physical: { carryHands: 1, useHands: 1 }
+    }, { type: "equipped", slot: "game-strap" });
+    hunter.physical.add({
       id: "isaac-waterskin",
       type: "water-container",
       size: "small",
@@ -18955,17 +19102,6 @@
       liquidContainer: { capacity: 1, contents: { type: "water", amount: 1 } }
     }, { type: "equipped", slot: "waterskin" });
     hunter.addActivity(new WaterPreparationActivity("isaac-water-preparation"));
-    const facility = createFacility({
-      id: DEFAULT_BUTCHERING_TABLE_ID,
-      type: "butchering-table",
-      placeId: "village-butcher-site",
-      position: { ...layout.butcherSite }
-    });
-    const butcheringTable = {
-      ...facility,
-      ownerId: hunter.id,
-      containerId: DEFAULT_GAME_LARDER_ID
-    };
     for (const habitat of layout.hookcrestHabitats) {
       world2.hunting.registerHabitat({
         id: habitat.id,
@@ -18980,14 +19116,17 @@
     hunter.addActivity(new HookcrestHuntingActivity({
       id: DEFAULT_HUNTING_ACTIVITY_ID,
       bowItemId: DEFAULT_HUNTING_BOW_ID,
+      gameCarrierSlots: DEFAULT_GAME_CARRIER_SLOTS,
       habitats: layout.hookcrestHabitats.map((habitat) => ({
         id: habitat.id,
         speciesId: "hookcrest",
         position: { ...habitat.position }
       })),
+      homeSubjectId: home.id,
+      homePosition: { ...home.position },
       preparationFacilityId: butcheringTable.id,
       preparationActionPointId: facilityActionPointId(butcheringTable.id),
-      preparationPosition: { ...layout.butcherSite },
+      preparationPosition: { ...preparationPosition },
       outputContainerId: DEFAULT_GAME_LARDER_ID,
       meatYield: 3,
       targetMeatStock: 3,
@@ -18997,7 +19136,6 @@
       priority: 46
     }));
     world2.addObject(home);
-    world2.addObject(butcheringTable);
     return {
       hunter,
       home,
