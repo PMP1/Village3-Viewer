@@ -715,6 +715,21 @@ for (const button of speedButtons) {
 
 new ResizeObserver(resizeCanvas).observe(canvas);
 
+function expandEntityDeltaFrames(frames) {
+    const entities = new Map();
+    const order = [];
+    return frames.map(frame => {
+        for (const entity of frame.entities ?? []) {
+            if (!entities.has(entity.id)) order.push(entity.id);
+            entities.set(entity.id, entity);
+        }
+        return {
+            ...frame,
+            entities: order.map(id => entities.get(id))
+        };
+    });
+}
+
 async function loadRecording() {
     try {
         const response = await fetch("./simulation-recording.json", { cache: "no-store" });
@@ -722,6 +737,7 @@ async function loadRecording() {
         const data = await response.json();
         if (data.schemaVersion !== SCHEMA_VERSION) throw new Error(`Unsupported recording schema ${data.schemaVersion}; viewer expects ${SCHEMA_VERSION}.`);
         if (!Array.isArray(data.frames) || data.frames.length === 0 || !Array.isArray(data.events)) throw new Error("Recording does not contain frames and events in the expected format.");
+        if (data.framesAreEntityDeltas === true) data.frames = expandEntityDeltaFrames(data.frames);
         recording = data; worldBounds = calculateWorldBounds(recording.frames); timeline.max = String(recording.frames.length - 1);
         statusElement.textContent = `${recording.title} · ${recording.frames.length} frames`;
         fitWorld(); renderFrame(); resizeCanvas();

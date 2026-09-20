@@ -62,14 +62,14 @@
       });
     }
     characterSnapshot(character, world2) {
-      const room5 = world2.getRoomAtPosition(character.position);
+      const room6 = world2.getRoomAtPosition(character.position);
       const intent = character.currentIntent;
       const action = character.currentAction;
       return {
         id: character.id,
         name: character.name,
         position: { ...character.position },
-        ...room5 ? { roomId: room5.id, placeId: room5.placeId } : {},
+        ...room6 ? { roomId: room6.id, placeId: room6.placeId } : {},
         needs: {
           hunger: character.hunger,
           fullness: character.fullness,
@@ -510,7 +510,14 @@
       serviceCustomerPosition: { x: 129, y: 94 },
       storagePosition: { x: 124, y: 94 }
     },
-    butcherSite: { x: 121, y: 104 },
+    butcherSite: {
+      position: { x: 121, y: 104 },
+      frontDoorSide: "east",
+      shopProviderPosition: { x: 123, y: 104 },
+      shopCustomerPosition: { x: 124, y: 104 },
+      workPosition: { x: 119, y: 102 },
+      livingPosition: { x: 119, y: 106 }
+    },
     hookcrestHabitats: [
       { id: "west-field-hookcrest-habitat", position: { x: 79, y: 146 } },
       { id: "east-field-hookcrest-habitat", position: { x: 133, y: 146 } }
@@ -2952,14 +2959,14 @@
   };
 
   // src/world/Room.ts
-  function isPositionInRoom(position, room5) {
-    const { origin, width, height } = room5.area;
+  function isPositionInRoom(position, room6) {
+    const { origin, width, height } = room6.area;
     return position.x >= origin.x && position.x < origin.x + width && position.y >= origin.y && position.y < origin.y + height;
   }
-  function roomCentre(room5) {
+  function roomCentre(room6) {
     return {
-      x: room5.area.origin.x + room5.area.width / 2,
-      y: room5.area.origin.y + room5.area.height / 2
+      x: room6.area.origin.x + room6.area.width / 2,
+      y: room6.area.origin.y + room6.area.height / 2
     };
   }
 
@@ -6271,30 +6278,30 @@
       this.rooms = /* @__PURE__ */ new Map();
       this.rentals = [];
     }
-    registerRoom(room5) {
-      if (this.rooms.has(room5.id)) {
-        throw new Error(`Accommodation room ${room5.id} is already registered.`);
+    registerRoom(room6) {
+      if (this.rooms.has(room6.id)) {
+        throw new Error(`Accommodation room ${room6.id} is already registered.`);
       }
-      if (room5.rental && (!Number.isInteger(room5.rental.dailyRate) || room5.rental.dailyRate < 0)) {
+      if (room6.rental && (!Number.isInteger(room6.rental.dailyRate) || room6.rental.dailyRate < 0)) {
         throw new Error("Accommodation daily rate must be a non-negative whole number of currency items.");
       }
-      this.rooms.set(room5.id, room5);
+      this.rooms.set(room6.id, room6);
     }
     getRoom(roomId) {
       return this.rooms.get(roomId);
     }
     getRoomsAt(placeId) {
-      return Array.from(this.rooms.values()).filter((room5) => room5.placeId === placeId);
+      return Array.from(this.rooms.values()).filter((room6) => room6.placeId === placeId);
     }
     getAvailableRentableRooms(placeId, time) {
       return this.getRoomsAt(placeId).filter(
-        (room5) => room5.rental !== void 0 && !this.activeRentalForRoom(room5.id, time)
+        (room6) => room6.rental !== void 0 && !this.activeRentalForRoom(room6.id, time)
       );
     }
     /** Rents a room from `startTime` for whole 24-hour periods. */
     rentRoom(roomId, occupantId, startTime, days = 1) {
-      const room5 = this.rooms.get(roomId);
-      if (!room5?.rental) return void 0;
+      const room6 = this.rooms.get(roomId);
+      if (!room6?.rental) return void 0;
       if (!Number.isInteger(days) || days <= 0) {
         throw new Error("Accommodation rental days must be a positive integer.");
       }
@@ -6304,21 +6311,21 @@
         occupantId,
         startTime,
         endTime: startTime + days * MINUTES_PER_DAY13,
-        pricePaid: room5.rental.dailyRate * days
+        pricePaid: room6.rental.dailyRate * days
       };
       this.rentals.push(rental);
       return rental;
     }
     hasRoomAccess(characterId, roomId, time) {
-      const room5 = this.rooms.get(roomId);
-      if (!room5) return false;
-      if (room5.access === "public") return true;
-      if (room5.residentId === characterId) return true;
+      const room6 = this.rooms.get(roomId);
+      if (!room6) return false;
+      if (room6.access === "public") return true;
+      if (room6.residentId === characterId) return true;
       return this.activeRentalForRoom(roomId, time)?.occupantId === characterId;
     }
     getAccessibleRooms(characterId, time) {
       return Array.from(this.rooms.values()).filter(
-        (room5) => this.hasRoomAccess(characterId, room5.id, time)
+        (room6) => this.hasRoomAccess(characterId, room6.id, time)
       );
     }
     getActiveRental(characterId, time) {
@@ -6604,7 +6611,7 @@
         }
       }
       for (const place of this.objects.filter((object) => object.ownerId === character.id)) {
-        const rentableRooms = this.accommodation.getRoomsAt(place.id).filter((room5) => room5.rental !== void 0);
+        const rentableRooms = this.accommodation.getRoomsAt(place.id).filter((room6) => room6.rental !== void 0);
         if (rentableRooms.length === 0) continue;
         const price = rentableRooms[0].rental.dailyRate;
         character.addKnowledge({
@@ -6639,8 +6646,8 @@
       for (const partition of object.internalPartitions ?? []) {
         applyWallPartition(this.navigation, partition);
       }
-      for (const room5 of object.physicalRooms ?? []) {
-        this.accommodation.registerRoom(room5);
+      for (const room6 of object.physicalRooms ?? []) {
+        this.accommodation.registerRoom(room6);
       }
       for (const fixture of object.fixtures ?? []) {
         this.addObject(fixture);
@@ -6669,7 +6676,7 @@
     }
     /** Returns the first non-overlapping room area that currently contains the position. */
     getRoomAtPosition(position) {
-      return this.objects.flatMap((object) => object.physicalRooms ?? []).find((room5) => isPositionInRoom(position, room5));
+      return this.objects.flatMap((object) => object.physicalRooms ?? []).find((room6) => isPositionInRoom(position, room6));
     }
     getActionPoints() {
       const points = [];
@@ -10640,9 +10647,9 @@
       }
     }
     recordRoomResourceObservations(observer, world2) {
-      const room5 = world2.getRoomAtPosition(observer.position);
-      if (!room5) return;
-      for (const resource of world2.roomResources.getLiquidsInRoom(room5.id)) {
+      const room6 = world2.getRoomAtPosition(observer.position);
+      if (!room6) return;
+      for (const resource of world2.roomResources.getLiquidsInRoom(room6.id)) {
         rememberRoomLiquidResource(observer, resource, world2.time);
       }
     }
@@ -11422,9 +11429,9 @@
     );
   }
   function findLocalOwnedRoomWaterReserve(character, world2, expectedResourceId) {
-    const room5 = world2.getRoomAtPosition(character.position);
-    if (!room5) return void 0;
-    return world2.roomResources.getLiquidsInRoom(room5.id).find(
+    const room6 = world2.getRoomAtPosition(character.position);
+    if (!room6) return void 0;
+    return world2.roomResources.getLiquidsInRoom(room6.id).find(
       (resource) => resource.liquidType === WATER_TYPE4 && resource.amount >= 1 && resource.ownerId === character.id && (!expectedResourceId || resource.id === expectedResourceId)
     );
   }
@@ -12332,25 +12339,25 @@
       const resolved = resolveServiceInteractionTarget(character, target, world2, social);
       if (resolved.status !== "ready") return { status: "failed" };
       const provider = resolved.provider;
-      const room5 = world2.accommodation.getAvailableRentableRooms(placeId, world2.time)[0];
-      if (!room5?.rental) return { status: "failed" };
+      const room6 = world2.accommodation.getAvailableRentableRooms(placeId, world2.time)[0];
+      if (!room6?.rental) return { status: "failed" };
       const bed = world2.objects.find(
-        (object) => object.usableResource?.type === "bed" && object.usableResource.roomId === room5.id
+        (object) => object.usableResource?.type === "bed" && object.usableResource.roomId === room6.id
       );
       if (!bed) return { status: "failed" };
       const payment = commerce.payForService({
         payer: character,
         payee: provider,
-        amount: room5.rental.dailyRate,
-        description: `one day accommodation in ${room5.id}`
+        amount: room6.rental.dailyRate,
+        description: `one day accommodation in ${room6.id}`
       }, world2);
       if (!payment.success) return { status: "failed" };
-      const rental = world2.accommodation.rentRoom(room5.id, character.id, world2.time, 1);
+      const rental = world2.accommodation.rentRoom(room6.id, character.id, world2.time, 1);
       if (!rental) return { status: "failed" };
       character.memory.remember({
-        id: `${character.id}:accommodation-stay:${room5.id}:${world2.time}`,
+        id: `${character.id}:accommodation-stay:${room6.id}:${world2.time}`,
         type: "accommodation-stay",
-        subjectId: room5.id,
+        subjectId: room6.id,
         persistence: MINUTES_PER_DAY18,
         confidence: 1,
         createdAt: world2.time,
@@ -12367,7 +12374,7 @@
       logSimulation(
         world2,
         "event",
-        `${character.name} rents ${room5.id} from ${provider.name} for \xA3${rental.pricePaid} until minute ${rental.endTime}`
+        `${character.name} rents ${room6.id} from ${provider.name} for \xA3${rental.pricePaid} until minute ${rental.endTime}`
       );
       return { status: "completed" };
     });
@@ -13311,7 +13318,7 @@
   }
   function mayRemainOvernight(character, placeId, world2) {
     if (character.homeId === placeId) return true;
-    if (world2.accommodation.getRoomsAt(placeId).some((room5) => room5.residentId === character.id)) return true;
+    if (world2.accommodation.getRoomsAt(placeId).some((room6) => room6.residentId === character.id)) return true;
     const rental = world2.accommodation.getActiveRental(character.id, world2.time);
     if (!rental) return false;
     return world2.accommodation.getRoom(rental.roomId)?.placeId === placeId;
@@ -19144,6 +19151,477 @@
     };
   }
 
+  // src/activities/WorkplaceProductionActivity.ts
+  var MINUTES_PER_DAY21 = 24 * 60;
+  var WorkplaceProductionActivity = class {
+    constructor(options) {
+      this.options = options;
+      if (options.outputStomachVolume !== void 0 && (!Number.isFinite(options.outputStomachVolume) || options.outputStomachVolume <= 0)) {
+        throw new Error("Workplace production outputStomachVolume must be positive when provided.");
+      }
+      this.id = options.id;
+      this.name = options.name ?? "Produce Workplace Stock";
+    }
+    getIntents({ character, time }) {
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY21;
+      if (!isActive5(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
+      const remainingWorkMinutes = minutesUntilEnd3(
+        minuteOfDay,
+        this.options.activeFrom,
+        this.options.activeUntil
+      );
+      if (remainingWorkMinutes < this.options.durationMinutes) return [];
+      const possessions = character.physical.getAll();
+      const outputStock = possessions.filter(
+        (possession) => possession.location.type === "container" && possession.location.containerId === this.options.outputContainerId && possession.item.type === this.options.outputType && (this.options.outputFoodKind === void 0 || possession.item.food?.kind === this.options.outputFoodKind)
+      ).length;
+      if (outputStock >= this.options.targetStock) return [];
+      const inputCount = possessions.filter((possession) => possession.item.type === this.options.inputItemType).length;
+      if (inputCount < this.options.inputCountPerBatch) return [];
+      const rememberedLiquid = getRememberedRoomLiquidResource(
+        character,
+        this.options.liquidRoomResourceId
+      );
+      if (!rememberedLiquid || rememberedLiquid.liquidType !== this.options.liquidType) return [];
+      if (rememberedLiquid.amount < this.options.liquidAmountPerBatch) return [];
+      return [{
+        id: `${character.id}:activity:${this.id}:produce`,
+        source: { type: "activity", id: this.id },
+        goal: {
+          type: "produceWorkplaceStock",
+          parameters: {
+            recipeId: this.options.recipeId,
+            workActionPointId: this.options.workActionPointId,
+            workPosition: { ...this.options.workPosition },
+            outputContainerId: this.options.outputContainerId,
+            outputType: this.options.outputType,
+            ...this.options.outputFoodKind !== void 0 ? { outputFoodKind: this.options.outputFoodKind } : {},
+            ...this.options.outputHungerRelief !== void 0 ? { outputHungerRelief: this.options.outputHungerRelief } : {},
+            ...this.options.outputStomachVolume !== void 0 ? { outputStomachVolume: this.options.outputStomachVolume } : {},
+            targetStock: this.options.targetStock,
+            outputCountPerBatch: this.options.outputCountPerBatch,
+            inputItemType: this.options.inputItemType,
+            inputCountPerBatch: this.options.inputCountPerBatch,
+            liquidRoomResourceId: this.options.liquidRoomResourceId,
+            liquidType: this.options.liquidType,
+            liquidAmountPerBatch: this.options.liquidAmountPerBatch,
+            durationMinutes: this.options.durationMinutes,
+            finishBy: time + remainingWorkMinutes
+          }
+        },
+        priority: this.options.priority ?? 55
+      }];
+    }
+  };
+  function isActive5(minuteOfDay, start2, end) {
+    if (start2 === end) return true;
+    if (start2 < end) return minuteOfDay >= start2 && minuteOfDay < end;
+    return minuteOfDay >= start2 || minuteOfDay < end;
+  }
+  function minutesUntilEnd3(minuteOfDay, start2, end) {
+    if (!isActive5(minuteOfDay, start2, end)) return 0;
+    if (start2 === end) return MINUTES_PER_DAY21;
+    if (start2 < end) return end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY21 - minuteOfDay + end : end - minuteOfDay;
+  }
+
+  // src/world/ButcherShop.ts
+  var DEFAULT_BUTCHER_SHOP_WIDTH_METRES = 8;
+  var DEFAULT_BUTCHER_SHOP_HEIGHT_METRES = 8;
+  function butcherShopRoomIds(shopId) {
+    return {
+      shop: `${shopId}-shop`,
+      workroom: `${shopId}-workroom`,
+      living: `${shopId}-living`
+    };
+  }
+  function butcherShopBedId(shopId) {
+    return `${shopId}-living-bed`;
+  }
+  function butcherShopBlockId(shopId) {
+    return `${shopId}-butchering-block`;
+  }
+  function butcherShopWorkStorageId(shopId) {
+    return `${shopId}-work-storage`;
+  }
+  function createButcherShop(options) {
+    const origin = {
+      x: Math.floor(options.position.x) - Math.floor(DEFAULT_BUTCHER_SHOP_WIDTH_METRES / 2),
+      y: Math.floor(options.position.y) - Math.floor(DEFAULT_BUTCHER_SHOP_HEIGHT_METRES / 2)
+    };
+    const ids = butcherShopRoomIds(options.id);
+    const frontDoorId = `${options.id}-front-door`;
+    const workroomDoorId = `${options.id}-workroom-door`;
+    const livingDoorId = `${options.id}-living-door`;
+    const shop = room5(ids.shop, options.id, { x: origin.x + 4, y: origin.y }, 4, 8, "public");
+    const workroom = room5(ids.workroom, options.id, origin, 4, 4, "private");
+    const living = room5(ids.living, options.id, { x: origin.x, y: origin.y + 4 }, 4, 4, "private", options.ownerId);
+    const internalPartitions = [
+      {
+        origin: { x: origin.x + 3, y: origin.y },
+        side: "east",
+        length: 8,
+        doors: [
+          { id: workroomDoorId, offset: 2, state: "open" },
+          { id: livingDoorId, offset: 6, state: "open" }
+        ]
+      },
+      {
+        origin: { x: origin.x, y: origin.y + 3 },
+        side: "south",
+        length: 4
+      }
+    ];
+    const livingCentre = roomCentre(living);
+    const workCentre = roomCentre(workroom);
+    return {
+      id: options.id,
+      kind: "building",
+      visualSize: "medium",
+      recognisablePlaceType: "shop",
+      recognisableServices: ["food", "trade"],
+      advertisedServiceOfferings: [
+        {
+          service: "food",
+          offering: "portable-food",
+          itemType: "food",
+          itemCategory: "meat",
+          foodKind: "meat",
+          terms: { price: 3, expectedDuration: 5 }
+        },
+        {
+          service: "trade",
+          offering: "portable-food",
+          itemType: "dressed-hookcrest-carcass",
+          terms: { price: 4, expectedDuration: 5 }
+        }
+      ],
+      advertisedServiceHours: options.advertisedServiceHours?.map((descriptor) => ({
+        service: descriptor.service,
+        windows: descriptor.windows.map((window) => ({ ...window }))
+      })),
+      position: { ...options.position },
+      ownerId: options.ownerId,
+      physicalFootprint: {
+        origin,
+        width: DEFAULT_BUTCHER_SHOP_WIDTH_METRES,
+        height: DEFAULT_BUTCHER_SHOP_HEIGHT_METRES,
+        doors: [{ id: frontDoorId, side: options.frontDoorSide, offset: 4, state: "open", barredFromInside: true }]
+      },
+      physicalRooms: [shop, workroom, living],
+      internalPartitions,
+      fixtures: [
+        createUsableResource({
+          id: butcherShopBedId(options.id),
+          type: "bed",
+          placeId: options.id,
+          roomId: living.id,
+          position: livingCentre,
+          physicalObstruction: bedObstructionWestOfActionPoint(livingCentre)
+        }),
+        createFacility({
+          id: butcherShopBlockId(options.id),
+          type: "butchering-table",
+          placeId: options.id,
+          roomId: workroom.id,
+          position: workCentre,
+          actionPointPosition: workCentre,
+          physicalObstruction: {
+            origin: { x: Math.floor(workCentre.x) - 1, y: Math.floor(workCentre.y) },
+            width: 1,
+            height: 1
+          }
+        }),
+        {
+          id: butcherShopWorkStorageId(options.id),
+          kind: "other",
+          position: workCentre,
+          ownerId: options.ownerId,
+          containerId: butcherShopWorkStorageId(options.id)
+        }
+      ]
+    };
+  }
+  function room5(id, placeId, origin, width, height, access, residentId) {
+    return {
+      id,
+      placeId,
+      access,
+      ...residentId ? { residentId } : {},
+      area: { origin: { ...origin }, width, height }
+    };
+  }
+
+  // src/scenarios/DefaultButcher.ts
+  var DEFAULT_BUTCHER_ID = "jack";
+  var DEFAULT_BUTCHER_SHOP_ID = "village-butcher-shop";
+  var DEFAULT_BUTCHER_COUNTER_ID = "village-butcher-counter";
+  var DEFAULT_BUTCHER_WATER_RESERVE_ID = "jack-butcher-water-barrel";
+  var DEFAULT_BUTCHER_BUCKET_ID = "jack-butcher-bucket";
+  var DEFAULT_BUTCHER_WATERSKIN_ID = "jack-waterskin";
+  var DEFAULT_DRESSED_HOOKCREST_PRICE = 4;
+  var DEFAULT_RAW_MEAT_PRICE = 3;
+  var DEFAULT_BUTCHER_SERVICE_HOURS = [
+    { service: "food", windows: [{ startMinuteOfDay: 9 * 60, endMinuteOfDay: 17 * 60 }] },
+    { service: "trade", windows: [{ startMinuteOfDay: 9 * 60, endMinuteOfDay: 17 * 60 }] }
+  ];
+  function createDefaultButcherWorkplace(world2, layout) {
+    const site = layout.butcherSite;
+    const butcher = new Character(DEFAULT_BUTCHER_ID, "Jack", { ...site.workPosition }, createPersonality({
+      frugality: 0.65,
+      caution: 0.55,
+      patience: 0.65,
+      conscientiousness: 0.85,
+      sociability: 0.6,
+      helpfulness: 0.55,
+      curiosity: 0.35,
+      assertiveness: 0.65,
+      integrity: 0.8,
+      emotionalStability: 0.75
+    }));
+    butcher.homeId = DEFAULT_BUTCHER_SHOP_ID;
+    butcher.hunger = 0;
+    butcher.thirst = 0;
+    butcher.tiredness = 30;
+    butcher.money = 20;
+    const shop = createButcherShop({
+      id: DEFAULT_BUTCHER_SHOP_ID,
+      ownerId: butcher.id,
+      position: { ...site.position },
+      frontDoorSide: site.frontDoorSide,
+      advertisedServiceHours: DEFAULT_BUTCHER_SERVICE_HOURS
+    });
+    const counter = createServicePoint({
+      id: DEFAULT_BUTCHER_COUNTER_ID,
+      placeId: shop.id,
+      services: ["food", "trade"],
+      providerPosition: { ...site.shopProviderPosition },
+      customerPosition: { ...site.shopCustomerPosition },
+      ownerId: butcher.id,
+      containerId: DEFAULT_BUTCHER_COUNTER_ID,
+      initialState: "closed"
+    });
+    world2.addObject(shop);
+    world2.addObject(counter);
+    const rooms = butcherShopRoomIds(shop.id);
+    const workStorageId = butcherShopWorkStorageId(shop.id);
+    const waterReserve = world2.roomResources.registerLiquid({
+      id: DEFAULT_BUTCHER_WATER_RESERVE_ID,
+      roomId: rooms.workroom,
+      liquidType: "water",
+      capacity: 12,
+      initialAmount: 4,
+      ownerId: butcher.id
+    });
+    rememberRoomLiquidResource(butcher, waterReserve, world2.time);
+    const frontDoorId = `${shop.id}-front-door`;
+    const frontDoorInside = shop.physicalFootprint ? getDoorInsidePosition(shop.physicalFootprint, frontDoorId) : void 0;
+    if (!frontDoorInside) throw new Error("Village butcher shop requires an inside-operable front door.");
+    butcher.addActivity(new WaterPreparationActivity("jack-water-preparation"));
+    butcher.addActivity(new SellFoodActivity());
+    butcher.addActivity(new BuyOfferedGoodsActivity({
+      id: "jack-buy-dressed-game",
+      name: "Buy Dressed Game",
+      policies: {
+        "dressed-hookcrest-carcass": {
+          maxUnitPrice: DEFAULT_DRESSED_HOOKCREST_PRICE,
+          storageContainerId: workStorageId,
+          storagePosition: { ...site.workPosition }
+        }
+      }
+    }));
+    butcher.addActivity(new WorkplaceProductionActivity({
+      id: "jack-butcher-hookcrests",
+      name: "Butcher Dressed Hookcrests",
+      recipeId: "butcher-dressed-hookcrest",
+      workActionPointId: facilityActionPointId(butcherShopBlockId(shop.id)),
+      workPosition: { ...site.workPosition },
+      outputContainerId: workStorageId,
+      outputType: "food",
+      outputFoodKind: "meat",
+      outputStomachVolume: 20,
+      targetStock: 12,
+      outputCountPerBatch: 3,
+      inputItemType: "dressed-hookcrest-carcass",
+      inputCountPerBatch: 1,
+      liquidRoomResourceId: DEFAULT_BUTCHER_WATER_RESERVE_ID,
+      liquidType: "water",
+      liquidAmountPerBatch: 1,
+      durationMinutes: 20,
+      activeFrom: 8 * 60,
+      activeUntil: 17 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      priority: 60
+    }));
+    butcher.addActivity(new ServicePointOperationActivity({
+      id: "jack-butcher-counter-operation",
+      name: "Operate Butcher Shop",
+      servicePointId: counter.id,
+      providerPosition: { ...site.shopProviderPosition },
+      opensAt: 9 * 60,
+      closesAt: 17 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      initialState: "closed"
+    }));
+    butcher.addActivity(new WorkplaceLiquidReserveActivity({
+      id: "jack-butcher-water-reserve",
+      name: "Fill Butcher Water Reserve",
+      reserveId: DEFAULT_BUTCHER_WATER_RESERVE_ID,
+      roomId: rooms.workroom,
+      roomPosition: { ...site.workPosition },
+      bucketItemId: DEFAULT_BUTCHER_BUCKET_ID,
+      sourceId: "village-fountain",
+      liquidType: "water",
+      targetAmount: 12,
+      activeFrom: 17 * 60,
+      activeUntil: 20 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      priority: 55
+    }));
+    butcher.addActivity(new DoorScheduleActivity({
+      id: "jack-butcher-front-door-hours",
+      doorId: frontDoorId,
+      placeId: shop.id,
+      insidePosition: frontDoorInside,
+      opensAt: 8 * 60,
+      closesAt: 18 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      initialState: "open",
+      priority: 75
+    }));
+    butcher.addKnowledge({
+      type: "home-location",
+      subjectId: shop.id,
+      polarity: "positive",
+      position: { ...site.livingPosition },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    for (const service of ["food", "trade"]) {
+      const hours = DEFAULT_BUTCHER_SERVICE_HOURS.find((entry) => entry.service === service);
+      butcher.addKnowledge({
+        type: "service-place",
+        subjectId: shop.id,
+        polarity: "positive",
+        position: { ...site.position },
+        context: { service },
+        sourceType: "world-initiation",
+        learnedAt: world2.time,
+        confidence: 1
+      });
+      butcher.addKnowledge({
+        type: "service-hours",
+        subjectId: shop.id,
+        polarity: "positive",
+        context: { service, hours: hours.windows.map((window) => ({ ...window })) },
+        sourceType: "world-initiation",
+        learnedAt: world2.time,
+        confidence: 1
+      });
+    }
+    butcher.addKnowledge({
+      type: "service-provider",
+      subjectId: butcher.id,
+      polarity: "positive",
+      context: {
+        service: "food",
+        placeId: shop.id,
+        offering: "portable-food",
+        itemType: "food",
+        itemCategory: "meat",
+        foodKind: "meat",
+        terms: { price: DEFAULT_RAW_MEAT_PRICE, expectedDuration: 5 }
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    butcher.addKnowledge({
+      type: "water-source",
+      subjectId: "village-fountain",
+      polarity: "positive",
+      position: { ...layout.fountainPosition },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    butcher.physical.add({
+      id: DEFAULT_BUTCHER_BUCKET_ID,
+      type: "bucket",
+      size: "medium",
+      physical: { carryHands: 1, useHands: 1 },
+      liquidContainer: { capacity: 4 }
+    }, { type: "container", containerId: workStorageId });
+    butcher.physical.add({
+      id: DEFAULT_BUTCHER_WATERSKIN_ID,
+      type: "waterskin",
+      size: "small",
+      physical: { carryHands: 1, useHands: 1 },
+      liquidContainer: { capacity: 2, contents: { type: "water", amount: 2 } }
+    }, { type: "equipped", slot: "waterskin" });
+    for (let index = 1; index <= 2; index++) {
+      butcher.physical.add({
+        id: `jack-personal-bread-${index}`,
+        type: "food",
+        size: "small",
+        physical: { carryHands: 1, useHands: 1 },
+        food: { kind: "bread", directlyEdible: { hungerRelief: 70 } }
+      }, { type: "equipped", slot: "food-satchel" });
+    }
+    return { butcher, shop, counter };
+  }
+  function configureDefaultHunterButcherTrade(world2, layout, hunter, butcher) {
+    hunter.addActivity(new OfferGoodsForSaleActivity({
+      id: "isaac-sell-dressed-game",
+      name: "Sell Dressed Game",
+      service: "trade",
+      offering: "portable-food",
+      itemType: "dressed-hookcrest-carcass",
+      quantity: 1,
+      reserveStock: 0,
+      priority: 50
+    }));
+    hunter.knownPeople.add(butcher.id);
+    hunter.addKnowledge({
+      type: "service-provider",
+      subjectId: butcher.id,
+      polarity: "positive",
+      context: {
+        service: "trade",
+        placeId: DEFAULT_BUTCHER_SHOP_ID,
+        offering: "portable-food",
+        itemType: "dressed-hookcrest-carcass",
+        terms: { price: DEFAULT_DRESSED_HOOKCREST_PRICE, expectedDuration: 5 }
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    hunter.addKnowledge({
+      type: "service-place",
+      subjectId: DEFAULT_BUTCHER_SHOP_ID,
+      polarity: "positive",
+      position: { ...layout.butcherSite.shopCustomerPosition },
+      context: { service: "trade" },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    hunter.addKnowledge({
+      type: "service-hours",
+      subjectId: DEFAULT_BUTCHER_SHOP_ID,
+      polarity: "positive",
+      context: {
+        service: "trade",
+        hours: DEFAULT_BUTCHER_SERVICE_HOURS.find((entry) => entry.service === "trade").windows.map((window) => ({ ...window }))
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+  }
+
   // src/scenarios/DefaultVillageScenario.ts
   function createDefaultVillageScenario(options = {}) {
     const scenario = createDefaultScenario(options);
@@ -19174,6 +19652,14 @@
     configureDefaultFarmerFieldWork(scenario.world, helenResidentSetup.farmer);
     const hunterSetup = createDefaultHunter(scenario.world, defaultVillageLayout);
     scenario.world.addCharacter(hunterSetup.hunter);
+    const butcherSetup = createDefaultButcherWorkplace(scenario.world, defaultVillageLayout);
+    scenario.world.addCharacter(butcherSetup.butcher);
+    configureDefaultHunterButcherTrade(
+      scenario.world,
+      defaultVillageLayout,
+      hunterSetup.hunter,
+      butcherSetup.butcher
+    );
     const alice = scenario.world.characters.find((character) => character.id === "alice");
     const emma = scenario.world.characters.find((character) => character.id === "emma");
     const dave = scenario.world.characters.find((character) => character.id === "dave");
@@ -19316,6 +19802,19 @@
       footwear: "boots",
       footwearColor: "dark-brown"
     });
+    setCharacterAppearance(butcherSetup.butcher, {
+      bodyType: "male",
+      hairStyle: "short-bangs",
+      hairColor: "black",
+      lowerBody: "pants",
+      lowerBodyColor: "charcoal",
+      torso: "shirt",
+      torsoColor: "cream",
+      outerwear: "apron",
+      outerwearColor: "brown",
+      footwear: "boots",
+      footwearColor: "black"
+    });
     return {
       ...scenario,
       agriculturalYearSetup,
@@ -19325,7 +19824,8 @@
       helenFarmerSetup,
       millSetup,
       merchantSetup,
-      hunterSetup
+      hunterSetup,
+      butcherSetup
     };
   }
 
@@ -19333,7 +19833,7 @@
   var SIMULATION_VIEW_SCHEMA_VERSION = 1;
 
   // src/view/SimulationViewAdapter.ts
-  var MINUTES_PER_DAY21 = 24 * 60;
+  var MINUTES_PER_DAY22 = 24 * 60;
   var SimulationViewAdapter = class {
     frame(world2) {
       return {
@@ -19345,15 +19845,15 @@
           ...world2.characters.map((character) => this.characterEntity(character)),
           ...world2.objects.flatMap((object) => [
             this.worldObjectEntity(object, world2),
-            ...(object.physicalRooms ?? []).map((room5) => this.roomEntity(room5))
+            ...(object.physicalRooms ?? []).map((room6) => this.roomEntity(room6))
           ])
         ]
       };
     }
     time(world2) {
       const absoluteMinute = world2.startMinuteOfDay + world2.time;
-      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY21) + 1;
-      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY21;
+      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY22) + 1;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY22;
       return {
         day,
         hour: Math.floor(minuteOfDay / 60),
@@ -19535,19 +20035,19 @@
         ...Object.keys(properties).length > 0 ? { properties } : {}
       };
     }
-    roomEntity(room5) {
-      const { origin, width, height } = room5.area;
+    roomEntity(room6) {
+      const { origin, width, height } = room6.area;
       const properties = {
-        roomPlaceId: room5.placeId,
-        roomAccess: room5.access
+        roomPlaceId: room6.placeId,
+        roomAccess: room6.access
       };
-      if (room5.residentId !== void 0) properties.roomResidentId = room5.residentId;
-      if (room5.rental !== void 0) properties.roomDailyRate = room5.rental.dailyRate;
+      if (room6.residentId !== void 0) properties.roomResidentId = room6.residentId;
+      if (room6.rental !== void 0) properties.roomDailyRate = room6.rental.dailyRate;
       return {
-        id: room5.id,
+        id: room6.id,
         category: "room",
         subtype: "building",
-        label: this.roomLabel(room5),
+        label: this.roomLabel(room6),
         position: {
           x: origin.x + width / 2,
           y: origin.y + height / 2
@@ -19634,9 +20134,9 @@
       const barrier = world2.navigation.getBarrier(cell, neighbour);
       return barrier?.type === "door" && barrier.doorId === doorId ? barrier.state : fallback;
     }
-    roomLabel(room5) {
-      const placePrefix = `${room5.placeId}-`;
-      const relativeId = room5.id.startsWith(placePrefix) ? room5.id.slice(placePrefix.length) : room5.id;
+    roomLabel(room6) {
+      const placePrefix = `${room6.placeId}-`;
+      const relativeId = room6.id.startsWith(placePrefix) ? room6.id.slice(placePrefix.length) : room6.id;
       return this.labelFromId(relativeId);
     }
     labelFromId(id) {
@@ -19743,8 +20243,8 @@
       const rootContainerIds = this.rootContainerIds(object, world2);
       const contents = this.itemContents(rootContainerIds, world2);
       if (object.kind === "building") {
-        for (const room5 of object.physicalRooms ?? []) {
-          for (const resource of world2.roomResources.getLiquidsInRoom(room5.id)) {
+        for (const room6 of object.physicalRooms ?? []) {
+          for (const resource of world2.roomResources.getLiquidsInRoom(room6.id)) {
             contents.push({
               kind: "liquid",
               type: resource.liquidType,
