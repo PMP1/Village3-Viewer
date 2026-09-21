@@ -3737,9 +3737,113 @@
     }
   };
 
-  // src/activities/FieldFarmingActivity.ts
+  // src/environment/SeasonalDaylight.ts
+  var DAYS_PER_YEAR = 365;
+  var NORTHERN_EUROPE_LATITUDE_DEGREES = 54.5;
+  var DEFAULT_VILLAGE_START_DAY_OF_YEAR = 244;
   var MINUTES_PER_DAY9 = 24 * 60;
-  var DEFAULT_MAINTENANCE_INTERVAL_MINUTES = 7 * MINUTES_PER_DAY9;
+  function normalizeDayOfYear(dayOfYear) {
+    if (!Number.isFinite(dayOfYear)) throw new Error("Day of year must be finite.");
+    const wholeDay = Math.floor(dayOfYear);
+    return ((wholeDay - 1) % DAYS_PER_YEAR + DAYS_PER_YEAR) % DAYS_PER_YEAR + 1;
+  }
+  function dayOfYearForSimulationTime(startMinuteOfDay, elapsedMinutes, startDayOfYear = DEFAULT_VILLAGE_START_DAY_OF_YEAR) {
+    if (!Number.isFinite(startMinuteOfDay) || !Number.isFinite(elapsedMinutes)) {
+      throw new Error("Simulation clock values must be finite.");
+    }
+    const dayIndex = Math.floor((startMinuteOfDay + elapsedMinutes) / MINUTES_PER_DAY9);
+    return normalizeDayOfYear(startDayOfYear + dayIndex);
+  }
+  function daylightTimes(dayOfYear, latitudeDegrees = NORTHERN_EUROPE_LATITUDE_DEGREES) {
+    if (!Number.isFinite(latitudeDegrees) || latitudeDegrees <= -90 || latitudeDegrees >= 90) {
+      throw new Error("Daylight latitude must be between -90 and 90 degrees.");
+    }
+    const day = normalizeDayOfYear(dayOfYear);
+    const latitude = toRadians(latitudeDegrees);
+    const declinationDegrees = 23.44 * Math.sin(2 * Math.PI * (284 + day) / DAYS_PER_YEAR);
+    const declination = toRadians(declinationDegrees);
+    const hourAngleCosine = clamp(-Math.tan(latitude) * Math.tan(declination), -1, 1);
+    const hourAngle = Math.acos(hourAngleCosine);
+    const daylightHours = 24 / Math.PI * hourAngle;
+    const halfDaylightMinutes = daylightHours * 30;
+    return {
+      sunriseMinute: MINUTES_PER_DAY9 / 2 - halfDaylightMinutes,
+      sunsetMinute: MINUTES_PER_DAY9 / 2 + halfDaylightMinutes,
+      daylightHours
+    };
+  }
+  function toRadians(degrees) {
+    return degrees * Math.PI / 180;
+  }
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  // src/scheduling/DailyRhythm.ts
+  var MINUTES_PER_DAY10 = 24 * 60;
+  var rhythms = /* @__PURE__ */ new WeakMap();
+  function setDailyRhythm(character, rhythm) {
+    validateRhythm(rhythm);
+    rhythms.set(character, rhythm);
+  }
+  function getDailyRhythm(character) {
+    return rhythms.get(character);
+  }
+  function wakeMinuteForDay(character, dayIndex, startDayOfYear = DEFAULT_VILLAGE_START_DAY_OF_YEAR) {
+    const rhythm = getDailyRhythm(character);
+    if (!rhythm) return void 0;
+    const dayOfYear = normalizeDayOfYear(startDayOfYear + dayIndex);
+    const baseMinute = rhythm.wake.type === "clock" ? rhythm.wake.minuteOfDay : daylightTimes(dayOfYear).sunriseMinute + (rhythm.wake.offsetMinutes ?? 0);
+    const variation = deterministicVariation(
+      `${character.id}:wake:${dayIndex}`,
+      rhythm.dailyVariationMinutes ?? 0
+    );
+    return normalizeMinute(Math.round(baseMinute) + variation);
+  }
+  function nextWakeTime(character, startMinuteOfDay, elapsedMinutes, startDayOfYear = DEFAULT_VILLAGE_START_DAY_OF_YEAR) {
+    if (!getDailyRhythm(character)) return void 0;
+    const absoluteMinute = startMinuteOfDay + elapsedMinutes;
+    const currentDayIndex = Math.floor(absoluteMinute / MINUTES_PER_DAY10);
+    for (let offset = 0; offset <= 1; offset++) {
+      const dayIndex = currentDayIndex + offset;
+      const wakeMinute = wakeMinuteForDay(character, dayIndex, startDayOfYear);
+      if (wakeMinute === void 0) return void 0;
+      const dayStartElapsed = dayIndex * MINUTES_PER_DAY10 - startMinuteOfDay;
+      const wakeTime = dayStartElapsed + wakeMinute;
+      if (wakeTime > elapsedMinutes) return wakeTime;
+    }
+    return void 0;
+  }
+  function deterministicVariation(key, maximumMinutes) {
+    const maximum = Math.max(0, Math.floor(maximumMinutes));
+    if (maximum === 0) return 0;
+    let hash = 2166136261;
+    for (let index = 0; index < key.length; index++) {
+      hash ^= key.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    const span = maximum * 2 + 1;
+    return (hash >>> 0) % span - maximum;
+  }
+  function validateRhythm(rhythm) {
+    if (rhythm.wake.type === "clock") {
+      if (!Number.isInteger(rhythm.wake.minuteOfDay) || rhythm.wake.minuteOfDay < 0 || rhythm.wake.minuteOfDay >= MINUTES_PER_DAY10) {
+        throw new Error("Clock wake minute must be an integer from 0 to 1439.");
+      }
+    } else if (!Number.isFinite(rhythm.wake.offsetMinutes ?? 0)) {
+      throw new Error("Sunrise wake offset must be finite.");
+    }
+    if (!Number.isFinite(rhythm.dailyVariationMinutes ?? 0) || (rhythm.dailyVariationMinutes ?? 0) < 0) {
+      throw new Error("Daily wake variation must be a non-negative number.");
+    }
+  }
+  function normalizeMinute(minuteOfDay) {
+    return (minuteOfDay % MINUTES_PER_DAY10 + MINUTES_PER_DAY10) % MINUTES_PER_DAY10;
+  }
+
+  // src/activities/FieldFarmingActivity.ts
+  var MINUTES_PER_DAY11 = 24 * 60;
+  var DEFAULT_MAINTENANCE_INTERVAL_MINUTES = 7 * MINUTES_PER_DAY11;
   var FieldFarmingActivity = class {
     constructor(options) {
       this.options = options;
@@ -3755,11 +3859,14 @@
       }));
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY9;
-      if (!isActive3(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
+      const absoluteMinute = this.options.startMinuteOfDay + time;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY11;
+      const dayIndex = Math.floor(absoluteMinute / MINUTES_PER_DAY11);
+      const window = this.activeWindow(character.id, dayIndex, time);
+      if (!isActive3(minuteOfDay, window.start, window.end)) return [];
       const task = this.nextTask(time, character.position);
       if (!task) return [];
-      const finishBy = time + minutesUntilEnd2(minuteOfDay, this.options.activeFrom, this.options.activeUntil);
+      const finishBy = time + minutesUntilEnd2(minuteOfDay, window.start, window.end);
       return [{
         id: `${character.id}:activity:${this.id}:${task.type}:${task.x},${task.y}`,
         source: { type: "activity", id: this.id },
@@ -3809,6 +3916,27 @@
     }
     getKnownTiles() {
       return this.tiles.map((tile) => ({ ...tile }));
+    }
+    activeWindow(characterId, dayIndex, time) {
+      if (!this.options.daylightWindow) {
+        return { start: this.options.activeFrom, end: this.options.activeUntil };
+      }
+      const dayOfYear = dayOfYearForSimulationTime(this.options.startMinuteOfDay, time);
+      const daylight = daylightTimes(dayOfYear);
+      const variation = deterministicVariation(
+        `${characterId}:${this.id}:start:${dayIndex}`,
+        this.options.daylightWindow.dailyStartVariationMinutes ?? 0
+      );
+      const daylightStart = Math.round(
+        daylight.sunriseMinute + (this.options.daylightWindow.startOffsetMinutes ?? 0) + variation
+      );
+      const daylightEnd = Math.round(
+        daylight.sunsetMinute + (this.options.daylightWindow.endOffsetMinutes ?? 0)
+      );
+      return {
+        start: Math.max(this.options.activeFrom, daylightStart),
+        end: Math.min(this.options.activeUntil, daylightEnd)
+      };
     }
     nextTask(time, position) {
       const dueHarvest = nearestTile(this.tiles.filter(
@@ -3864,9 +3992,9 @@
   }
   function minutesUntilEnd2(minuteOfDay, start2, end) {
     if (!isActive3(minuteOfDay, start2, end)) return 0;
-    if (start2 === end) return MINUTES_PER_DAY9;
+    if (start2 === end) return MINUTES_PER_DAY11;
     if (start2 < end) return end - minuteOfDay;
-    return minuteOfDay >= start2 ? MINUTES_PER_DAY9 - minuteOfDay + end : end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY11 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/activities/OfferGoodsForSaleActivity.ts
@@ -4443,8 +4571,15 @@
       name: "Work Household Fields",
       tiles,
       startMinuteOfDay: world2.startMinuteOfDay,
-      activeFrom: 8 * 60,
-      activeUntil: 17 * 60,
+      // Outdoor field work follows usable daylight. These hard bounds stop an
+      // exceptionally long summer day turning into an implausible all-night shift.
+      activeFrom: 4 * 60 + 30,
+      activeUntil: 21 * 60,
+      daylightWindow: {
+        startOffsetMinutes: 10,
+        endOffsetMinutes: -30,
+        dailyStartVariationMinutes: 5
+      },
       priority: 44
     });
     farmer.addActivity(activity);
@@ -4564,7 +4699,7 @@
   }
 
   // src/activities/MaterialProcessingServiceActivity.ts
-  var MINUTES_PER_DAY10 = 24 * 60;
+  var MINUTES_PER_DAY12 = 24 * 60;
   var MaterialProcessingServiceActivity = class {
     constructor(options) {
       this.options = options;
@@ -4590,7 +4725,7 @@
       }
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY10;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY12;
       const requests = character.requests.getIncoming(time).filter(
         (request2) => request2.type === MATERIAL_PROCESSING_REQUEST_TYPE && (request2.status === "pending" || request2.status === "accepted") && request2.parameters?.service === this.options.service && request2.parameters?.offering === this.options.offering && request2.parameters?.inputItemType === this.options.inputItemType && request2.parameters?.inputItemCategory === this.options.inputItemCategory && (request2.status === "accepted" || this.isAvailableAt(minuteOfDay))
       ).sort((first, second) => {
@@ -4634,7 +4769,7 @@
     }
   };
   function validateMinute(name, value) {
-    if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY10) {
+    if (!Number.isInteger(value) || value < 0 || value >= MINUTES_PER_DAY12) {
       throw new Error(`${name} must be an integer minute from 0 to 1439.`);
     }
   }
@@ -4643,7 +4778,7 @@
   }
 
   // src/environment/LightEnvironment.ts
-  var MINUTES_PER_DAY11 = 24 * 60;
+  var MINUTES_PER_DAY13 = 24 * 60;
   var DAYLIGHT_START_MINUTE = 6 * 60;
   var DAYLIGHT_END_MINUTE = 20 * 60;
   var NIGHT_VISIBILITY_MULTIPLIER = 0.2;
@@ -4662,7 +4797,7 @@
     if (!Number.isFinite(minuteOfDay)) {
       throw new Error("Minute of day must be finite.");
     }
-    return (minuteOfDay % MINUTES_PER_DAY11 + MINUTES_PER_DAY11) % MINUTES_PER_DAY11;
+    return (minuteOfDay % MINUTES_PER_DAY13 + MINUTES_PER_DAY13) % MINUTES_PER_DAY13;
   }
 
   // src/social/ConversationRange.ts
@@ -5519,7 +5654,7 @@
   ];
 
   // src/activities/ProcessingDemandActivity.ts
-  var MINUTES_PER_DAY12 = 24 * 60;
+  var MINUTES_PER_DAY14 = 24 * 60;
 
   // src/world/Mill.ts
   var DEFAULT_MILL_WIDTH_METRES = 8;
@@ -6295,7 +6430,7 @@
   };
 
   // src/world/AccommodationSystem.ts
-  var MINUTES_PER_DAY13 = 24 * 60;
+  var MINUTES_PER_DAY15 = 24 * 60;
   var AccommodationSystem = class {
     constructor() {
       this.rooms = /* @__PURE__ */ new Map();
@@ -6333,7 +6468,7 @@
         roomId,
         occupantId,
         startTime,
-        endTime: startTime + days * MINUTES_PER_DAY13,
+        endTime: startTime + days * MINUTES_PER_DAY15,
         pricePaid: room6.rental.dailyRate * days
       };
       this.rentals.push(rental);
@@ -6574,7 +6709,7 @@
   };
 
   // src/world/World.ts
-  var MINUTES_PER_DAY14 = 24 * 60;
+  var MINUTES_PER_DAY16 = 24 * 60;
   var World = class {
     constructor(startMinuteOfDay = 0, chanceSource = new SeededChanceSource(1)) {
       this.startMinuteOfDay = startMinuteOfDay;
@@ -6599,14 +6734,14 @@
       this.agriculture = new AgricultureSystem();
       this.hunting = new HuntingSystem();
       this.lastAgricultureGrowthDay = 0;
-      if (!Number.isInteger(startMinuteOfDay) || startMinuteOfDay < 0 || startMinuteOfDay >= MINUTES_PER_DAY14) {
+      if (!Number.isInteger(startMinuteOfDay) || startMinuteOfDay < 0 || startMinuteOfDay >= MINUTES_PER_DAY16) {
         throw new Error("World startMinuteOfDay must be an integer from 0 to 1439.");
       }
       this.chance = new ChanceSystem(chanceSource);
       this.chanceSeed = chanceSource instanceof SeededChanceSource ? chanceSource.seed : null;
     }
     get minuteOfDay() {
-      return (this.startMinuteOfDay + this.time) % MINUTES_PER_DAY14;
+      return (this.startMinuteOfDay + this.time) % MINUTES_PER_DAY16;
     }
     addCharacter(character) {
       this.characters.push(character);
@@ -6731,7 +6866,7 @@
     update() {
       this.syncPresenceActionPoints();
       this.foodSpoilage.update(this.characters, 1);
-      const agricultureDay = Math.floor((this.startMinuteOfDay + this.time) / MINUTES_PER_DAY14);
+      const agricultureDay = Math.floor((this.startMinuteOfDay + this.time) / MINUTES_PER_DAY16);
       if (agricultureDay > this.lastAgricultureGrowthDay) {
         this.agriculture.update(this.time);
         this.lastAgricultureGrowthDay = agricultureDay;
@@ -7066,7 +7201,7 @@
   };
 
   // src/scheduling/AgendaPlanner.ts
-  var MINUTES_PER_DAY15 = 24 * 60;
+  var MINUTES_PER_DAY17 = 24 * 60;
   var MEAL_BREAK_GRACE_MINUTES = 30;
   var AgendaPlanner = class {
     constructor(planner, needs = new NeedForecaster(), routineReviewer = new RoutineReviewer()) {
@@ -7075,7 +7210,7 @@
       this.routineReviewer = routineReviewer;
     }
     ensureAgenda(character, world2) {
-      const dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY15);
+      const dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY17);
       if (character.dailyAgenda?.dayIndex !== dayIndex) {
         if (character.dailyAgenda) {
           this.routineReviewer.review(character, character.dailyAgenda);
@@ -7094,7 +7229,7 @@
       }
       character.dailyAgenda.items.sort((first, second) => first.plannedStart - second.plannedStart);
     }
-    build(character, world2, dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY15), templates = character.routineTemplates) {
+    build(character, world2, dayIndex = Math.floor((world2.startMinuteOfDay + world2.time) / MINUTES_PER_DAY17), templates = character.routineTemplates) {
       const items = [];
       const context = {
         character,
@@ -7202,7 +7337,7 @@
     materialiseMealBreaks(character, world2, dayIndex) {
       const agenda = character.dailyAgenda;
       if (!agenda || !this.hasSubjectiveMealLead(character)) return;
-      const dayStartTime = dayIndex * MINUTES_PER_DAY15 - world2.startMinuteOfDay;
+      const dayStartTime = dayIndex * MINUTES_PER_DAY17 - world2.startMinuteOfDay;
       for (const assignment of character.activitySchedules) {
         for (const mealBreak of assignment.mealBreaks ?? []) {
           if (!Number.isFinite(mealBreak.startMinuteOfDay) || !Number.isFinite(mealBreak.endMinuteOfDay) || mealBreak.endMinuteOfDay <= mealBreak.startMinuteOfDay) continue;
@@ -7788,7 +7923,7 @@
   };
 
   // src/services/ServiceAvailabilityMemory.ts
-  var MINUTES_PER_DAY16 = 24 * 60;
+  var MINUTES_PER_DAY18 = 24 * 60;
   var EVENING_CLOSED_RECONSIDERATION_MINUTE = 18 * 60;
   var LATE_NIGHT_START_MINUTE = 22 * 60;
   var MORNING_RECONSIDERATION_MINUTE = 6 * 60;
@@ -7868,8 +8003,8 @@
     if (valid.some((window) => isWithinWindow(current, window))) return void 0;
     const minutesUntilOpening = Math.min(...valid.map((window) => {
       const start2 = normalizeMinuteOfDay2(window.startMinuteOfDay);
-      const delta = (start2 - current + MINUTES_PER_DAY16) % MINUTES_PER_DAY16;
-      return delta === 0 ? MINUTES_PER_DAY16 : delta;
+      const delta = (start2 - current + MINUTES_PER_DAY18) % MINUTES_PER_DAY18;
+      return delta === 0 ? MINUTES_PER_DAY18 : delta;
     }));
     return time + Math.max(1, minutesUntilOpening);
   }
@@ -7912,11 +8047,11 @@
     return morningRetryAt(time, normalizeMinuteOfDay2(minuteOfDay));
   }
   function morningRetryAt(time, normalizedMinuteOfDay) {
-    const minutesUntilMorning = normalizedMinuteOfDay < MORNING_RECONSIDERATION_MINUTE ? MORNING_RECONSIDERATION_MINUTE - normalizedMinuteOfDay : MINUTES_PER_DAY16 - normalizedMinuteOfDay + MORNING_RECONSIDERATION_MINUTE;
+    const minutesUntilMorning = normalizedMinuteOfDay < MORNING_RECONSIDERATION_MINUTE ? MORNING_RECONSIDERATION_MINUTE - normalizedMinuteOfDay : MINUTES_PER_DAY18 - normalizedMinuteOfDay + MORNING_RECONSIDERATION_MINUTE;
     return time + Math.max(1, minutesUntilMorning);
   }
   function normalizeMinuteOfDay2(minuteOfDay) {
-    return (Math.floor(minuteOfDay) % MINUTES_PER_DAY16 + MINUTES_PER_DAY16) % MINUTES_PER_DAY16;
+    return (Math.floor(minuteOfDay) % MINUTES_PER_DAY18 + MINUTES_PER_DAY18) % MINUTES_PER_DAY18;
   }
 
   // src/services/ServiceDiscovery.ts
@@ -12085,7 +12220,7 @@
   }
 
   // src/planning/PurchaseExecution.ts
-  var MINUTES_PER_DAY17 = 24 * 60;
+  var MINUTES_PER_DAY19 = 24 * 60;
   var MORNING_RECONSIDERATION_MINUTE2 = 6 * 60;
   function registerPurchaseHandlers(registry, commerce, social, accessibility, movement) {
     registerIfMissing5(
@@ -12362,8 +12497,8 @@
     logSimulation(world2, "event", `${seller.name} closes service point ${placeId} after selling out of ${itemType}`);
   }
   function nextMorningRetryAt(time, minuteOfDay) {
-    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY17 + MINUTES_PER_DAY17) % MINUTES_PER_DAY17;
-    const delta = normalized < MORNING_RECONSIDERATION_MINUTE2 ? MORNING_RECONSIDERATION_MINUTE2 - normalized : MINUTES_PER_DAY17 - normalized + MORNING_RECONSIDERATION_MINUTE2;
+    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY19 + MINUTES_PER_DAY19) % MINUTES_PER_DAY19;
+    const delta = normalized < MORNING_RECONSIDERATION_MINUTE2 ? MORNING_RECONSIDERATION_MINUTE2 - normalized : MINUTES_PER_DAY19 - normalized + MORNING_RECONSIDERATION_MINUTE2;
     return time + Math.max(1, delta);
   }
   function rememberRefusal(buyer, providerId, context, request, time) {
@@ -12435,7 +12570,7 @@
   }
 
   // src/services/AccommodationExecution.ts
-  var MINUTES_PER_DAY18 = 24 * 60;
+  var MINUTES_PER_DAY20 = 24 * 60;
   function registerAccommodationHandlers(registry, commerce, social) {
     if (registry.has("rent-room")) return;
     registry.register("rent-room", (plan, character, world2) => {
@@ -12469,7 +12604,7 @@
         id: `${character.id}:accommodation-stay:${room6.id}:${world2.time}`,
         type: "accommodation-stay",
         subjectId: room6.id,
-        persistence: MINUTES_PER_DAY18,
+        persistence: MINUTES_PER_DAY20,
         confidence: 1,
         createdAt: world2.time,
         lastObservedAt: world2.time,
@@ -14254,7 +14389,7 @@
   }
 
   // src/activities/HookcrestHuntingActivity.ts
-  var MINUTES_PER_DAY19 = 24 * 60;
+  var MINUTES_PER_DAY21 = 24 * 60;
   var HookcrestHuntingActivity = class {
     constructor(options) {
       this.options = options;
@@ -14276,14 +14411,17 @@
       }));
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY19;
+      const absoluteMinute = this.options.startMinuteOfDay + time;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY21;
+      const dayIndex = Math.floor(absoluteMinute / MINUTES_PER_DAY21);
+      const activeWindow = this.activeWindow(character.id, dayIndex, time);
       const carriedGame = character.physical.getAll().filter(
         (possession) => possession.location.type === "equipped" && this.options.gameCarrierSlots.includes(possession.location.slot) && (possession.item.type === "hookcrest-carcass" || possession.item.type === "dressed-hookcrest-carcass")
       );
       const rawCarcasses = carriedGame.filter((possession) => possession.item.type === "hookcrest-carcass");
       const dressedCarcasses = carriedGame.filter((possession) => possession.item.type === "dressed-hookcrest-carcass");
       const availableCarrierSlot = this.availableCarrierSlot(character);
-      const habitat = isActive4(minuteOfDay, this.options.activeFrom, this.options.activeUntil) && availableCarrierSlot ? nearestAvailableHabitat(this.habitats, time, character.position) : void 0;
+      const habitat = isActive4(minuteOfDay, activeWindow.start, activeWindow.end) && availableCarrierSlot ? nearestAvailableHabitat(this.habitats, time, character.position) : void 0;
       if (habitat) {
         return [{
           id: `${character.id}:activity:${this.id}:hunt:${habitat.id}`,
@@ -14368,6 +14506,27 @@
     }
     getKnownHabitats() {
       return this.habitats.map((habitat) => ({ ...habitat, position: { ...habitat.position } }));
+    }
+    activeWindow(characterId, dayIndex, time) {
+      if (!this.options.daylightWindow) {
+        return { start: this.options.activeFrom, end: this.options.activeUntil };
+      }
+      const dayOfYear = dayOfYearForSimulationTime(this.options.startMinuteOfDay, time);
+      const daylight = daylightTimes(dayOfYear);
+      const variation = deterministicVariation(
+        `${characterId}:${this.id}:start:${dayIndex}`,
+        this.options.daylightWindow.dailyStartVariationMinutes ?? 0
+      );
+      return {
+        start: Math.max(
+          this.options.activeFrom,
+          Math.round(daylight.sunriseMinute + (this.options.daylightWindow.startOffsetMinutes ?? 0) + variation)
+        ),
+        end: Math.min(
+          this.options.activeUntil,
+          Math.round(daylight.sunsetMinute + (this.options.daylightWindow.endOffsetMinutes ?? 0))
+        )
+      };
     }
     availableCarrierSlot(character) {
       const occupied = new Set(character.physical.getAll().filter((possession) => possession.location.type === "equipped").map((possession) => possession.location.type === "equipped" ? possession.location.slot : ""));
@@ -16874,7 +17033,7 @@
   }
 
   // src/services/ServiceProviderExecution.ts
-  var MINUTES_PER_DAY20 = 24 * 60;
+  var MINUTES_PER_DAY22 = 24 * 60;
   var MORNING_RECONSIDERATION_MINUTE3 = 6 * 60;
   var CLOSED_PROVIDER_RETRY_MINUTES = 30;
   function registerServiceProviderHandlers(registry, social, movement) {
@@ -17094,8 +17253,8 @@
     );
   }
   function nextMorningRetryAt2(time, minuteOfDay) {
-    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY20 + MINUTES_PER_DAY20) % MINUTES_PER_DAY20;
-    const delta = normalized < MORNING_RECONSIDERATION_MINUTE3 ? MORNING_RECONSIDERATION_MINUTE3 - normalized : MINUTES_PER_DAY20 - normalized + MORNING_RECONSIDERATION_MINUTE3;
+    const normalized = (Math.floor(minuteOfDay) % MINUTES_PER_DAY22 + MINUTES_PER_DAY22) % MINUTES_PER_DAY22;
+    const delta = normalized < MORNING_RECONSIDERATION_MINUTE3 ? MORNING_RECONSIDERATION_MINUTE3 - normalized : MINUTES_PER_DAY22 - normalized + MORNING_RECONSIDERATION_MINUTE3;
     return time + Math.max(1, delta);
   }
   function bestKnownProviderLocation(character, providerId) {
@@ -18239,6 +18398,80 @@
     return typeof position.x === "number" && typeof position.y === "number";
   }
 
+  // src/planning/ScheduledSleepExecution.ts
+  var NORMAL_SLEEP_EXPECTED_MINUTES = 8 * 60;
+  var SLEEP_TOLERANCE_MINUTES = 4 * 60;
+  var MAX_OVERNIGHT_WAKE_HORIZON_MINUTES = 16 * 60;
+  function registerScheduledSleepHandlers(registry) {
+    registry.register("sleep", (_plan, character, world2) => sleep2(character, world2));
+    registry.register("sleep-rented-room", (_plan, character, world2) => sleep2(character, world2));
+  }
+  function sleep2(character, world2) {
+    if (character.tiredness <= 20) return { status: "completed" };
+    const bed = findAccessibleBed2(character, world2);
+    if (!bed?.usableResource) return { status: "failed" };
+    if (Math.hypot(bed.position.x - character.position.x, bed.position.y - character.position.y) > 0.1) {
+      return { status: "failed" };
+    }
+    if (!world2.resourceUsage.claim(bed.id, character.id, bed.usableResource.capacity)) {
+      return { status: "failed" };
+    }
+    const candidateWakeTime = nextWakeTime(character, world2.startMinuteOfDay, world2.time);
+    const scheduledWakeTime = candidateWakeTime !== void 0 && candidateWakeTime - world2.time <= MAX_OVERNIGHT_WAKE_HORIZON_MINUTES ? candidateWakeTime : void 0;
+    const expectedDuration = scheduledWakeTime === void 0 ? NORMAL_SLEEP_EXPECTED_MINUTES : Math.max(NORMAL_SLEEP_EXPECTED_MINUTES, scheduledWakeTime - world2.time);
+    let released = false;
+    const releaseBed = () => {
+      if (released) return;
+      released = true;
+      world2.resourceUsage.release(bed.id, character.id);
+    };
+    logSimulation(
+      world2,
+      "event",
+      scheduledWakeTime === void 0 ? `${character.name} uses ${bed.id} to sleep` : `${character.name} uses ${bed.id} to sleep until around ${formatWakeTime(world2, scheduledWakeTime)}`
+    );
+    return startAction(character, world2, "sleep", expectedDuration, SLEEP_TOLERANCE_MINUTES, () => {
+      const rested = character.tiredness <= 20;
+      const wakeTimeReached = scheduledWakeTime === void 0 || world2.time >= scheduledWakeTime;
+      const complete = rested && wakeTimeReached;
+      if (complete) releaseBed();
+      return complete;
+    }, {
+      interruptionPolicy: "interruptible",
+      onTick: (minutes) => {
+        character.tiredness = Math.max(
+          0,
+          character.tiredness - character.sleepRecoveryPerMinute * minutes
+        );
+      },
+      shouldInterrupt: () => character.dailyAgenda?.items.some(
+        (item) => item.status === "planned" && world2.time >= item.plannedStart
+      ) ?? false,
+      onInterrupt: releaseBed
+    });
+  }
+  function findAccessibleBed2(character, world2) {
+    const rental = world2.accommodation.getActiveRental(character.id, world2.time);
+    if (rental) {
+      return world2.objects.find(
+        (object) => object.usableResource?.type === "bed" && object.usableResource.roomId === rental.roomId
+      );
+    }
+    const homeId = character.homeId;
+    if (!homeId) return void 0;
+    return world2.objects.find((object) => {
+      const resource = object.usableResource;
+      if (resource?.type !== "bed" || resource.placeId !== homeId) return false;
+      return resource.roomId === void 0 || world2.accommodation.hasRoomAccess(character.id, resource.roomId, world2.time);
+    });
+  }
+  function formatWakeTime(world2, wakeTime) {
+    const minuteOfDay = (world2.startMinuteOfDay + wakeTime) % (24 * 60);
+    const hour = Math.floor(minuteOfDay / 60);
+    const minute = minuteOfDay % 60;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  }
+
   // src/Simulation.ts
   var DEFAULT_SIMULATION_MINUTES = 2880;
   var Simulation = class {
@@ -18275,6 +18508,7 @@
         isInteractionClear: (from, to) => this.world.navigation.isLineClear(from, to, "interaction")
       });
       const executionRegistry = new PlanExecutionRegistry();
+      registerScheduledSleepHandlers(executionRegistry);
       executionRegistry.register("small-talk", (plan, character, world3) => {
         const target = plan.target;
         if (target?.type !== "person") return { status: "failed" };
@@ -19111,7 +19345,7 @@
   };
 
   // src/activities/SurplusFoodPreservationActivity.ts
-  var MINUTES_PER_DAY21 = 24 * 60;
+  var MINUTES_PER_DAY23 = 24 * 60;
   var SurplusFoodPreservationActivity = class {
     constructor(options) {
       this.options = options;
@@ -19128,7 +19362,7 @@
       this.name = options.name ?? "Preserve Surplus Food";
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY21;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY23;
       if (!isActive5(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
       const remainingWorkMinutes = minutesUntilEnd3(
         minuteOfDay,
@@ -19177,13 +19411,13 @@
   }
   function minutesUntilEnd3(minuteOfDay, start2, end) {
     if (!isActive5(minuteOfDay, start2, end)) return 0;
-    if (start2 === end) return MINUTES_PER_DAY21;
+    if (start2 === end) return MINUTES_PER_DAY23;
     if (start2 < end) return end - minuteOfDay;
-    return minuteOfDay >= start2 ? MINUTES_PER_DAY21 - minuteOfDay + end : end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY23 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/activities/WorkplaceProductionActivity.ts
-  var MINUTES_PER_DAY22 = 24 * 60;
+  var MINUTES_PER_DAY24 = 24 * 60;
   var WorkplaceProductionActivity = class {
     constructor(options) {
       this.options = options;
@@ -19194,7 +19428,7 @@
       this.name = options.name ?? "Produce Workplace Stock";
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY22;
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY24;
       if (!isActive6(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
       const remainingWorkMinutes = minutesUntilEnd4(
         minuteOfDay,
@@ -19251,9 +19485,9 @@
   }
   function minutesUntilEnd4(minuteOfDay, start2, end) {
     if (!isActive6(minuteOfDay, start2, end)) return 0;
-    if (start2 === end) return MINUTES_PER_DAY22;
+    if (start2 === end) return MINUTES_PER_DAY24;
     if (start2 < end) return end - minuteOfDay;
-    return minuteOfDay >= start2 ? MINUTES_PER_DAY22 - minuteOfDay + end : end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY24 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/world/ButcherShop.ts
@@ -20000,8 +20234,13 @@
       meatYield: 3,
       targetMeatStock: 3,
       startMinuteOfDay: world2.startMinuteOfDay,
-      activeFrom: 8 * 60,
-      activeUntil: 17 * 60,
+      activeFrom: 4 * 60,
+      activeUntil: 18 * 60,
+      daylightWindow: {
+        startOffsetMinutes: -15,
+        endOffsetMinutes: -60,
+        dailyStartVariationMinutes: 6
+      },
       priority: 46
     }));
     world2.addObject(home);
@@ -20011,6 +20250,29 @@
       butcheringTable,
       habitatIds: layout.hookcrestHabitats.map((habitat) => habitat.id)
     };
+  }
+
+  // src/scenarios/DefaultVillageDailyRhythms.ts
+  var DEFAULT_RESIDENT_RHYTHMS = [
+    { characterId: "alice", rhythm: { wake: { type: "clock", minuteOfDay: 7 * 60 + 10 }, dailyVariationMinutes: 10 } },
+    { characterId: "bob", rhythm: { wake: { type: "clock", minuteOfDay: 6 * 60 + 50 }, dailyVariationMinutes: 6 } },
+    { characterId: "charlie", rhythm: { wake: { type: "sunrise", offsetMinutes: -20 }, dailyVariationMinutes: 7 } },
+    { characterId: "dave", rhythm: { wake: { type: "clock", minuteOfDay: 7 * 60 + 20 }, dailyVariationMinutes: 8 } },
+    { characterId: "emma", rhythm: { wake: { type: "clock", minuteOfDay: 5 * 60 + 35 }, dailyVariationMinutes: 6 } },
+    { characterId: "george", rhythm: { wake: { type: "clock", minuteOfDay: 7 * 60 + 25 }, dailyVariationMinutes: 7 } },
+    { characterId: "nora", rhythm: { wake: { type: "clock", minuteOfDay: 35 }, dailyVariationMinutes: 5 } },
+    { characterId: "helen", rhythm: { wake: { type: "sunrise", offsetMinutes: -5 }, dailyVariationMinutes: 7 } },
+    { characterId: "isaac", rhythm: { wake: { type: "sunrise", offsetMinutes: -25 }, dailyVariationMinutes: 6 } },
+    { characterId: "jack", rhythm: { wake: { type: "clock", minuteOfDay: 6 * 60 + 45 }, dailyVariationMinutes: 7 } }
+  ];
+  function configureDefaultVillageDailyRhythms(world2) {
+    for (const entry of DEFAULT_RESIDENT_RHYTHMS) {
+      const character = world2.characters.find((candidate) => candidate.id === entry.characterId);
+      if (!character) {
+        throw new Error(`Default village daily rhythm requires resident ${entry.characterId}.`);
+      }
+      setDailyRhythm(character, entry.rhythm);
+    }
   }
 
   // src/scenarios/DefaultVillageScenario.ts
@@ -20058,6 +20320,7 @@
       throw new Error("Default village requires Alice, Emma and Dave before appearance setup.");
     }
     configureDefaultTavernIngredientProcurement(scenario.world, defaultVillageLayout, emma, dave);
+    configureDefaultVillageDailyRhythms(scenario.world);
     for (let index = 1; index <= 3; index++) {
       const id = `dave-cart-dried-meat-${index}`;
       dave.physical.add({
@@ -20224,7 +20487,7 @@
   var SIMULATION_VIEW_SCHEMA_VERSION = 1;
 
   // src/view/SimulationViewAdapter.ts
-  var MINUTES_PER_DAY23 = 24 * 60;
+  var MINUTES_PER_DAY25 = 24 * 60;
   var SimulationViewAdapter = class {
     frame(world2) {
       return {
@@ -20243,8 +20506,8 @@
     }
     time(world2) {
       const absoluteMinute = world2.startMinuteOfDay + world2.time;
-      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY23) + 1;
-      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY23;
+      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY25) + 1;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY25;
       return {
         day,
         hour: Math.floor(minuteOfDay / 60),
