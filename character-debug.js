@@ -362,8 +362,44 @@
     function initialiseCompactGameUi() {
         if (!document.body || !canvas || document.querySelector(".game-person-mini")) return;
 
-        const ZOOM_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4];
+        const ZOOM_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 5];
         const DEFAULT_GAME_ZOOM_MULTIPLIER = 2;
+        const viewportMeta = document.querySelector('meta[name="viewport"]');
+        const defaultViewportContent = viewportMeta?.getAttribute("content") ?? "width=device-width, initial-scale=1";
+        const GAME_VIEWPORT_CONTENT = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+
+        function syncGameViewportLock() {
+            if (!viewportMeta) return;
+            viewportMeta.setAttribute(
+                "content",
+                document.body.dataset.viewMode === "game" ? GAME_VIEWPORT_CONTENT : defaultViewportContent
+            );
+        }
+
+        new MutationObserver(syncGameViewportLock).observe(document.body, {
+            attributes: true,
+            attributeFilter: ["data-view-mode"]
+        });
+        syncGameViewportLock();
+
+        function preventBrowserZoomGesture(event) {
+            if (document.body.dataset.viewMode !== "game") return;
+            event.preventDefault();
+        }
+
+        for (const eventName of ["gesturestart", "gesturechange", "gestureend"]) {
+            document.addEventListener(eventName, preventBrowserZoomGesture, { passive: false });
+        }
+        document.addEventListener("wheel", event => {
+            if (document.body.dataset.viewMode !== "game" || !event.ctrlKey) return;
+            event.preventDefault();
+        }, { capture: true, passive: false });
+        document.addEventListener("keydown", event => {
+            if (document.body.dataset.viewMode !== "game") return;
+            if (!(event.ctrlKey || event.metaKey)) return;
+            if (!["+", "=", "-", "_", "0"].includes(event.key)) return;
+            event.preventDefault();
+        }, true);
 
         const styles = document.createElement("style");
         styles.textContent = `
