@@ -356,4 +356,548 @@
     });
 
     showAllEventsButton.addEventListener("click", () => focusCharacter(undefined));
+
+    window.VillageCharacterDebug = Object.freeze({ focusCharacter });
+
+    function initialiseCompactGameUi() {
+        if (!document.body || !canvas || document.querySelector(".game-person-mini")) return;
+
+        const ZOOM_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4];
+        const DEFAULT_GAME_ZOOM_MULTIPLIER = 2;
+
+        const styles = document.createElement("style");
+        styles.textContent = `
+            body[data-view-mode="game"] .game-hud {
+                left: max(10px, env(safe-area-inset-left));
+                right: max(10px, env(safe-area-inset-right));
+                justify-content: space-between;
+                align-items: flex-start;
+            }
+
+            body[data-view-mode="game"] .game-speed-controls {
+                padding: 0;
+                gap: 7px;
+                border: 0;
+                background: transparent;
+                box-shadow: none;
+            }
+
+            body[data-view-mode="game"] .game-speed-button,
+            body[data-view-mode="game"] .game-speed-button[data-hud-speed="5"],
+            body[data-view-mode="game"] .game-speed-button[data-hud-speed="20"] {
+                width: 50px;
+                min-width: 50px;
+                height: 50px;
+                padding: 0;
+                border-radius: 50%;
+                font-size: 17px;
+            }
+
+            body[data-view-mode="game"] .game-time-card {
+                min-width: 0;
+                min-height: 50px;
+                padding: 7px 14px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                text-align: left;
+            }
+
+            body[data-view-mode="game"] .game-day-label,
+            body[data-view-mode="game"] .game-clock-label {
+                margin: 0;
+                font-size: 21px;
+                line-height: 1;
+            }
+
+            body[data-view-mode="game"] .game-day-label {
+                padding-right: 12px;
+                border-right: 2px solid rgba(77, 47, 25, .44);
+            }
+
+            body[data-view-mode="game"] .game-season-label { display: none; }
+            body[data-view-mode="game"] .map-controls { display: none; }
+
+            .game-fixed-zoom-controls {
+                display: none;
+                position: fixed;
+                right: max(12px, env(safe-area-inset-right));
+                top: 42%;
+                z-index: 64;
+                transform: translateY(-50%);
+                gap: 8px;
+            }
+
+            body[data-view-mode="game"] .game-fixed-zoom-controls {
+                display: grid;
+            }
+
+            .game-fixed-zoom-button {
+                width: 52px;
+                min-width: 52px;
+                height: 52px;
+                padding: 0;
+                border-radius: 11px;
+                font-size: 30px;
+                line-height: 1;
+            }
+
+            .game-person-mini {
+                display: none;
+                position: fixed;
+                left: 50%;
+                bottom: calc(91px + max(8px, env(safe-area-inset-bottom)));
+                z-index: 64;
+                width: min(720px, calc(100vw - 20px));
+                min-height: 96px;
+                transform: translateX(-50%);
+                padding: 10px 13px;
+                grid-template-columns: 58px minmax(0, 1fr) minmax(118px, .55fr);
+                align-items: center;
+                gap: 12px;
+                color: var(--game-ink, #3b2414);
+                border: 3px solid var(--game-wood-edge, #4d2f19);
+                border-radius: 15px;
+                background:
+                    linear-gradient(90deg, rgba(255,255,255,.13), transparent 28%, rgba(90,47,20,.07) 69%, transparent),
+                    repeating-linear-gradient(2deg, var(--game-wood-pale, #f1d8a9) 0 15px, #e8c990 15px 17px, var(--game-wood-pale, #f1d8a9) 17px 31px);
+                box-shadow: inset 0 0 0 3px rgba(255, 244, 215, .3), 0 9px 28px rgba(27, 14, 6, .4);
+                font-family: Georgia, "Times New Roman", serif;
+                pointer-events: none;
+            }
+
+            body[data-view-mode="game"] .game-person-mini.is-visible { display: grid; }
+            body[data-view-mode="game"][data-game-panel] .game-person-mini { display: none; }
+
+            .game-person-mini-avatar {
+                width: 56px;
+                height: 56px;
+                display: grid;
+                place-items: center;
+                border-radius: 12px;
+                border: 2px solid rgba(77,47,25,.6);
+                background: rgba(122, 84, 48, .28);
+                box-shadow: inset 0 1px rgba(255,255,255,.4);
+                font-size: 20px;
+                font-weight: 800;
+            }
+
+            .game-person-mini-main { min-width: 0; }
+            .game-person-mini-name {
+                display: block;
+                margin-bottom: 6px;
+                font-size: 19px;
+                line-height: 1;
+                white-space: nowrap;
+                overflow: clip;
+                text-overflow: ellipsis;
+            }
+
+            .game-person-mini-stats { display: grid; gap: 5px; }
+            .game-person-mini-stat {
+                display: grid;
+                grid-template-columns: 19px minmax(0, 1fr);
+                gap: 6px;
+                align-items: center;
+            }
+            .game-person-mini-stat-icon {
+                font-size: 14px;
+                text-align: center;
+                line-height: 1;
+            }
+            .game-person-mini-stat-track {
+                height: 9px;
+                border-radius: 999px;
+                overflow: clip;
+                border: 1px solid rgba(77,47,25,.55);
+                background: rgba(75, 46, 26, .48);
+                box-shadow: inset 0 1px 2px rgba(34, 18, 8, .25);
+            }
+            .game-person-mini-stat-fill {
+                display: block;
+                height: 100%;
+                border-radius: inherit;
+                background: #b65b35;
+            }
+            .game-person-mini-stat[data-stat="thirst"] .game-person-mini-stat-fill { background: #4c83a8; }
+            .game-person-mini-stat[data-stat="tiredness"] .game-person-mini-stat-fill { background: #9b7a31; }
+
+            .game-person-mini-meta {
+                min-width: 0;
+                align-self: stretch;
+                padding-left: 12px;
+                border-left: 2px solid rgba(77,47,25,.35);
+                display: grid;
+                align-content: center;
+                gap: 8px;
+            }
+            .game-person-mini-money {
+                font-size: 20px;
+                font-weight: 800;
+                font-variant-numeric: tabular-nums;
+            }
+            .game-person-mini-action {
+                font-size: 14px;
+                font-weight: 700;
+                line-height: 1.2;
+                white-space: nowrap;
+                overflow: clip;
+                text-overflow: ellipsis;
+            }
+
+            @media (max-width: 700px) {
+                body[data-view-mode="game"] .game-hud {
+                    left: max(7px, env(safe-area-inset-left));
+                    right: max(7px, env(safe-area-inset-right));
+                }
+                body[data-view-mode="game"] .game-speed-controls { gap: 4px; }
+                body[data-view-mode="game"] .game-speed-button,
+                body[data-view-mode="game"] .game-speed-button[data-hud-speed="5"],
+                body[data-view-mode="game"] .game-speed-button[data-hud-speed="20"] {
+                    width: 42px;
+                    min-width: 42px;
+                    height: 42px;
+                    font-size: 14px;
+                }
+                body[data-view-mode="game"] .game-time-card {
+                    min-height: 42px;
+                    padding: 6px 9px;
+                    gap: 8px;
+                }
+                body[data-view-mode="game"] .game-day-label,
+                body[data-view-mode="game"] .game-clock-label { font-size: 17px; }
+                body[data-view-mode="game"] .game-day-label { padding-right: 8px; }
+                .game-fixed-zoom-controls { right: max(8px, env(safe-area-inset-right)); }
+                .game-fixed-zoom-button { width: 46px; min-width: 46px; height: 46px; font-size: 27px; }
+                .game-person-mini {
+                    bottom: calc(82px + max(7px, env(safe-area-inset-bottom)));
+                    min-height: 84px;
+                    padding: 8px 10px;
+                    grid-template-columns: 48px minmax(0, 1fr) 104px;
+                    gap: 9px;
+                }
+                .game-person-mini-avatar { width: 46px; height: 46px; font-size: 17px; }
+                .game-person-mini-name { margin-bottom: 5px; font-size: 16px; }
+                .game-person-mini-stat { grid-template-columns: 16px minmax(0, 1fr); gap: 4px; }
+                .game-person-mini-stat-icon { font-size: 12px; }
+                .game-person-mini-stat-track { height: 7px; }
+                .game-person-mini-meta { padding-left: 9px; gap: 5px; }
+                .game-person-mini-money { font-size: 16px; }
+                .game-person-mini-action { font-size: 12px; }
+            }
+
+            @media (max-width: 430px) {
+                body[data-view-mode="game"] .game-speed-button,
+                body[data-view-mode="game"] .game-speed-button[data-hud-speed="5"],
+                body[data-view-mode="game"] .game-speed-button[data-hud-speed="20"] {
+                    width: 38px;
+                    min-width: 38px;
+                    height: 38px;
+                    font-size: 12px;
+                }
+                body[data-view-mode="game"] .game-time-card { min-height: 38px; padding-inline: 7px; }
+                body[data-view-mode="game"] .game-day-label,
+                body[data-view-mode="game"] .game-clock-label { font-size: 15px; }
+                .game-person-mini {
+                    grid-template-columns: 42px minmax(0, 1fr) 86px;
+                    gap: 7px;
+                    padding-inline: 8px;
+                }
+                .game-person-mini-avatar { width: 40px; height: 40px; font-size: 15px; }
+                .game-person-mini-meta { padding-left: 7px; }
+            }
+        `;
+        document.head.append(styles);
+
+        const zoomControls = document.createElement("div");
+        zoomControls.className = "game-fixed-zoom-controls";
+        zoomControls.setAttribute("aria-label", "Fixed map zoom levels");
+        const zoomIn = document.createElement("button");
+        zoomIn.type = "button";
+        zoomIn.className = "game-fixed-zoom-button game-wood-button";
+        zoomIn.setAttribute("aria-label", "Zoom in one level");
+        zoomIn.textContent = "+";
+        const zoomOut = document.createElement("button");
+        zoomOut.type = "button";
+        zoomOut.className = "game-fixed-zoom-button game-wood-button";
+        zoomOut.setAttribute("aria-label", "Zoom out one level");
+        zoomOut.textContent = "−";
+        zoomControls.append(zoomIn, zoomOut);
+        document.body.append(zoomControls);
+
+        const mini = document.createElement("aside");
+        mini.className = "game-person-mini";
+        mini.setAttribute("aria-live", "polite");
+        mini.setAttribute("aria-label", "Tracked person");
+        const miniAvatar = document.createElement("span");
+        miniAvatar.className = "game-person-mini-avatar";
+        miniAvatar.setAttribute("aria-hidden", "true");
+        const miniMain = document.createElement("div");
+        miniMain.className = "game-person-mini-main";
+        const miniName = document.createElement("strong");
+        miniName.className = "game-person-mini-name";
+        const miniStats = document.createElement("div");
+        miniStats.className = "game-person-mini-stats";
+        const miniMeta = document.createElement("div");
+        miniMeta.className = "game-person-mini-meta";
+        const miniMoney = document.createElement("div");
+        miniMoney.className = "game-person-mini-money";
+        const miniAction = document.createElement("div");
+        miniAction.className = "game-person-mini-action";
+        miniMeta.append(miniMoney, miniAction);
+        miniMain.append(miniName, miniStats);
+        mini.append(miniAvatar, miniMain, miniMeta);
+        document.body.append(mini);
+
+        const miniStatDefinitions = [
+            { key: "hunger", icon: "●", label: "Hunger" },
+            { key: "thirst", icon: "◆", label: "Thirst" },
+            { key: "tiredness", icon: "☾", label: "Tiredness" }
+        ];
+        const miniStatFills = new Map();
+        for (const definition of miniStatDefinitions) {
+            const row = document.createElement("div");
+            row.className = "game-person-mini-stat";
+            row.dataset.stat = definition.key;
+            const icon = document.createElement("span");
+            icon.className = "game-person-mini-stat-icon";
+            icon.textContent = definition.icon;
+            icon.setAttribute("aria-hidden", "true");
+            const track = document.createElement("span");
+            track.className = "game-person-mini-stat-track";
+            track.setAttribute("role", "progressbar");
+            track.setAttribute("aria-label", definition.label);
+            track.setAttribute("aria-valuemin", "0");
+            track.setAttribute("aria-valuemax", "100");
+            const fill = document.createElement("span");
+            fill.className = "game-person-mini-stat-fill";
+            track.append(fill);
+            row.append(icon, track);
+            miniStats.append(row);
+            miniStatFills.set(definition.key, { track, fill });
+        }
+
+        function trackedCharacter() {
+            const entity = selectedEntity();
+            return entity?.category === "character" ? entity : undefined;
+        }
+
+        function updateMiniStat(key, character) {
+            const parts = miniStatFills.get(key);
+            if (!parts) return;
+            const raw = Number(character.properties?.[key]);
+            const value = Number.isFinite(raw) ? clamp(raw, 0, 100) : 0;
+            parts.fill.style.width = `${value}%`;
+            parts.track.setAttribute("aria-valuenow", compactNumber(value));
+        }
+
+        function refreshMiniPerson() {
+            const character = trackedCharacter();
+            if (!character) {
+                mini.classList.remove("is-visible");
+                return;
+            }
+            miniAvatar.textContent = initials(character.label ?? character.id);
+            miniName.textContent = character.label ?? character.id;
+            miniMoney.textContent = formatMoney(character.properties?.money);
+            miniAction.textContent = friendlyLabel(
+                character.state?.action ?? character.properties?.currentGoal
+            ) ?? "Idle / deciding";
+            miniAction.title = miniAction.textContent;
+            for (const definition of miniStatDefinitions) updateMiniStat(definition.key, character);
+            mini.classList.add("is-visible");
+        }
+
+        function nearestZoomLevelIndex() {
+            const fit = Math.max(0.0001, fittedScale());
+            const ratio = camera.scale / fit;
+            let bestIndex = 0;
+            let bestDistance = Number.POSITIVE_INFINITY;
+            for (let index = 0; index < ZOOM_LEVEL_MULTIPLIERS.length; index++) {
+                const distance = Math.abs(ZOOM_LEVEL_MULTIPLIERS[index] - ratio);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    bestIndex = index;
+                }
+            }
+            return bestIndex;
+        }
+
+        function updateFixedZoomButtons() {
+            const index = nearestZoomLevelIndex();
+            zoomOut.disabled = index <= 0;
+            zoomIn.disabled = index >= ZOOM_LEVEL_MULTIPLIERS.length - 1;
+        }
+
+        function setFixedZoomLevel(index) {
+            if (!cameraInitialised) return;
+            const targetIndex = clamp(index, 0, ZOOM_LEVEL_MULTIPLIERS.length - 1);
+            const wasFollowing = followSelected;
+            setCameraScale(fittedScale() * ZOOM_LEVEL_MULTIPLIERS[targetIndex]);
+            followSelected = wasFollowing;
+            if (followSelected && recording?.frames?.[frameIndex]) {
+                updateFollowCamera(recording.frames[frameIndex], true);
+            }
+            updateFollowButton();
+            renderMap();
+            updateFixedZoomButtons();
+        }
+
+        zoomIn.addEventListener("click", () => setFixedZoomLevel(nearestZoomLevelIndex() + 1));
+        zoomOut.addEventListener("click", () => setFixedZoomLevel(nearestZoomLevelIndex() - 1));
+
+        const originalFitWorld = fitWorld;
+        fitWorld = function fitWorldAtGameDefaultZoom() {
+            originalFitWorld();
+            if (document.body.dataset.viewMode === "game" && cameraInitialised) {
+                setCameraScale(fittedScale() * DEFAULT_GAME_ZOOM_MULTIPLIER);
+            }
+            updateFixedZoomButtons();
+        };
+
+        const settingsResetButton = [...document.querySelectorAll(".game-settings-action")]
+            .find(button => button.textContent?.trim() === "Fit village to screen");
+        if (settingsResetButton) settingsResetButton.textContent = "Reset game zoom";
+
+        const previousRenderMap = renderMap;
+        renderMap = function renderMapWithTrackedPersonSummary() {
+            previousRenderMap();
+            refreshMiniPerson();
+        };
+
+        function groundOnly(entity) {
+            return entity?.category === "map-feature" && (
+                entity.subtype === "road" ||
+                entity.subtype === "market-square" ||
+                entity.subtype === "cart-pitch"
+            );
+        }
+
+        function selectableEntityAtPoint(x, y) {
+            let nearest;
+            let nearestDistance = 20;
+            for (const item of projectedEntities) {
+                if (groundOnly(item.entity)) continue;
+                const insideBounds = item.bounds &&
+                    x >= item.bounds.left && x <= item.bounds.right &&
+                    y >= item.bounds.top && y <= item.bounds.bottom;
+                const distance = insideBounds ? 0 : Math.hypot(item.point.x - x, item.point.y - y);
+                if (distance < nearestDistance) {
+                    nearest = item.entity;
+                    nearestDistance = distance;
+                }
+            }
+            return nearest;
+        }
+
+        const previousSelectAtScreenPoint = selectAtScreenPoint;
+        selectAtScreenPoint = function selectAtScreenPointWithGameTracking(x, y) {
+            if (document.body.dataset.viewMode !== "game") {
+                previousSelectAtScreenPoint(x, y);
+                return;
+            }
+
+            const hit = selectableEntityAtPoint(x, y);
+            if (!hit) {
+                selectedEntityId = undefined;
+                followSelected = false;
+                window.VillageCharacterDebug?.focusCharacter(undefined);
+                updateFollowButton();
+                renderMap();
+                renderInspector();
+                return;
+            }
+
+            previousSelectAtScreenPoint(x, y);
+            const entity = selectedEntity();
+            if (entity?.category === "character") {
+                followSelected = true;
+                updateFollowCamera(recording.frames[frameIndex], true);
+                updateFollowButton();
+                renderMap();
+                renderInspector();
+                return;
+            }
+
+            window.VillageCharacterDebug?.focusCharacter(undefined);
+            refreshMiniPerson();
+        };
+
+        const previousPointerDown = handlePointerDown;
+        const previousPointerMove = handlePointerMove;
+        canvas.removeEventListener("pointerdown", previousPointerDown);
+        canvas.removeEventListener("pointermove", previousPointerMove);
+
+        handlePointerDown = function handlePointerDownWithoutGamePinch(event) {
+            if (document.body.dataset.viewMode !== "game") {
+                previousPointerDown(event);
+                return;
+            }
+            if (activePointers.size > 0) {
+                event.preventDefault();
+                return;
+            }
+            const point = pointerPosition(event);
+            activePointers.set(event.pointerId, point);
+            canvas.setPointerCapture(event.pointerId);
+            panStart = { screen: point, camera: { x: camera.x, y: camera.y } };
+            pinchStart = undefined;
+            pointerDragged = false;
+        };
+
+        handlePointerMove = function handlePointerMoveWithoutGamePinch(event) {
+            if (document.body.dataset.viewMode !== "game") {
+                previousPointerMove(event);
+                return;
+            }
+            if (!activePointers.has(event.pointerId) || !panStart) return;
+            const point = pointerPosition(event);
+            activePointers.set(event.pointerId, point);
+            const dx = point.x - panStart.screen.x;
+            const dy = point.y - panStart.screen.y;
+            if (Math.hypot(dx, dy) > 3) {
+                pointerDragged = true;
+                followSelected = false;
+                canvas.classList.add("dragging");
+                updateFollowButton();
+            }
+            if (!pointerDragged) return;
+            camera.x = panStart.camera.x - dx / camera.scale;
+            camera.y = panStart.camera.y - dy / camera.scale;
+            renderMap();
+        };
+
+        canvas.addEventListener("pointerdown", handlePointerDown);
+        canvas.addEventListener("pointermove", handlePointerMove);
+        canvas.addEventListener("wheel", event => {
+            if (document.body.dataset.viewMode !== "game") return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }, { capture: true, passive: false });
+        canvas.addEventListener("dblclick", event => {
+            if (document.body.dataset.viewMode !== "game") return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+        }, true);
+
+        canvas.setAttribute(
+            "aria-label",
+            "Simulation map. Select a person to track them. Drag to pan and use the fixed zoom buttons to change zoom."
+        );
+
+        function applyInitialGameZoom() {
+            if (!cameraInitialised || !recording?.frames?.length) {
+                requestAnimationFrame(applyInitialGameZoom);
+                return;
+            }
+            if (document.body.dataset.viewMode === "game") {
+                setCameraScale(fittedScale() * DEFAULT_GAME_ZOOM_MULTIPLIER);
+                renderMap();
+            }
+            updateFixedZoomButtons();
+        }
+        requestAnimationFrame(applyInitialGameZoom);
+    }
+
+    setTimeout(initialiseCompactGameUi, 0);
 })();
