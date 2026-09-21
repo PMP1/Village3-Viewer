@@ -1350,6 +1350,15 @@
       if (!options.inputItemType && !options.inputItemCategory) {
         throw new Error("Staged production requires an input item type or category.");
       }
+      const hasSecondaryInput = options.secondaryInputItemType !== void 0 || options.secondaryInputItemCategory !== void 0 || options.secondaryInputFoodKind !== void 0 || options.secondaryInputCountPerBatch !== void 0;
+      if (hasSecondaryInput) {
+        if (!options.secondaryInputItemType && !options.secondaryInputItemCategory) {
+          throw new Error("Staged production secondary input requires an item type or category.");
+        }
+        if (!Number.isInteger(options.secondaryInputCountPerBatch) || (options.secondaryInputCountPerBatch ?? 0) <= 0) {
+          throw new Error("Staged production secondaryInputCountPerBatch must be a positive integer.");
+        }
+      }
       if (options.stages.length === 0) throw new Error("Staged production requires at least one stage.");
       if (!Number.isInteger(options.maxConcurrentBatches) || options.maxConcurrentBatches <= 0) {
         throw new Error("Staged production maxConcurrentBatches must be a positive integer.");
@@ -1418,11 +1427,18 @@
             ...this.options.inputFoodKind !== void 0 ? { foodKind: this.options.inputFoodKind } : {}
           })
         ).length;
+        const secondaryInputCount = this.hasSecondaryInput() ? possessions.filter(
+          (possession) => itemMatchesSelector(possession.item, {
+            ...this.options.secondaryInputItemType !== void 0 ? { itemType: this.options.secondaryInputItemType } : {},
+            ...this.options.secondaryInputItemCategory !== void 0 ? { itemCategory: this.options.secondaryInputItemCategory } : {},
+            ...this.options.secondaryInputFoodKind !== void 0 ? { foodKind: this.options.secondaryInputFoodKind } : {}
+          })
+        ).length : 0;
         const rememberedLiquid = getRememberedRoomLiquidResource(
           character,
           this.options.liquidRoomResourceId
         );
-        if (inputCount >= this.options.inputCountPerBatch && rememberedLiquid?.liquidType === this.options.liquidType && rememberedLiquid.amount >= this.options.liquidAmountPerBatch) {
+        if (inputCount >= this.options.inputCountPerBatch && (!this.hasSecondaryInput() || secondaryInputCount >= this.options.secondaryInputCountPerBatch) && rememberedLiquid?.liquidType === this.options.liquidType && rememberedLiquid.amount >= this.options.liquidAmountPerBatch) {
           return [this.intent(character.id, "start", finishBy, {
             stageIndex: 0,
             stage: this.options.stages[0]
@@ -1443,6 +1459,9 @@
         }
       }
       return [];
+    }
+    hasSecondaryInput() {
+      return this.options.secondaryInputItemType !== void 0 || this.options.secondaryInputItemCategory !== void 0;
     }
     intent(characterId, operation, finishBy, stageState, priority) {
       const suffix = stageState.jobItemId ?? `new-${stageState.stageIndex}`;
@@ -1470,6 +1489,10 @@
             ...this.options.inputItemCategory !== void 0 ? { inputItemCategory: this.options.inputItemCategory } : {},
             ...this.options.inputFoodKind !== void 0 ? { inputFoodKind: this.options.inputFoodKind } : {},
             inputCountPerBatch: this.options.inputCountPerBatch,
+            ...this.options.secondaryInputItemType !== void 0 ? { secondaryInputItemType: this.options.secondaryInputItemType } : {},
+            ...this.options.secondaryInputItemCategory !== void 0 ? { secondaryInputItemCategory: this.options.secondaryInputItemCategory } : {},
+            ...this.options.secondaryInputFoodKind !== void 0 ? { secondaryInputFoodKind: this.options.secondaryInputFoodKind } : {},
+            ...this.options.secondaryInputCountPerBatch !== void 0 ? { secondaryInputCountPerBatch: this.options.secondaryInputCountPerBatch } : {},
             liquidRoomResourceId: this.options.liquidRoomResourceId,
             liquidType: this.options.liquidType,
             liquidAmountPerBatch: this.options.liquidAmountPerBatch,
@@ -9996,8 +10019,81 @@
     return typeof value === "number" && Number.isFinite(value) && value > 0;
   }
 
+  // src/planning/FoodPreservationPlans.ts
+  var foodPreservationPlans = [{
+    id: "preserve-surplus-food",
+    name: "Preserve Surplus Food",
+    achieves: { type: "preserveSurplusFood" },
+    prerequisites: [],
+    getPrerequisites: (goal) => {
+      const parameters = surplusFoodPreservationGoalParameters(goal);
+      return parameters ? [{
+        type: "atLocation",
+        parameters: {
+          subjectId: parameters.workActionPointId,
+          position: { ...parameters.workPosition }
+        }
+      }] : [];
+    },
+    isAvailable: (context, goal) => {
+      const parameters = surplusFoodPreservationGoalParameters(goal);
+      return parameters !== void 0 && context.time + parameters.durationMinutes <= parameters.finishBy;
+    },
+    duration: 0,
+    risk: 1,
+    cost: 0,
+    estimate: (goal) => ({
+      duration: surplusFoodPreservationGoalParameters(goal)?.durationMinutes ?? 0
+    })
+  }];
+  function surplusFoodPreservationGoalParameters(goal) {
+    const p = goal?.parameters;
+    if (!p) return void 0;
+    if (typeof p.recipeId !== "string" || typeof p.workActionPointId !== "string" || !isPosition8(p.workPosition) || typeof p.storageContainerId !== "string" || typeof p.outputType !== "string" || !isFoodKind(p.outputFoodKind)) return void 0;
+    const inputItemType = typeof p.inputItemType === "string" && p.inputItemType.length > 0 ? p.inputItemType : void 0;
+    const inputItemCategory = isItemCategory(p.inputItemCategory) ? p.inputItemCategory : void 0;
+    if (!inputItemType && !inputItemCategory) return void 0;
+    if (p.inputItemCategory !== void 0 && !inputItemCategory) return void 0;
+    if (p.inputFoodKind !== void 0 && !isFoodKind(p.inputFoodKind)) return void 0;
+    if (!isNonNegativeInteger3(p.reserveInputStock)) return void 0;
+    if (p.outputHungerRelief !== void 0 && !isPositiveNumber3(p.outputHungerRelief)) return void 0;
+    if (p.outputStomachVolume !== void 0 && !isPositiveNumber3(p.outputStomachVolume)) return void 0;
+    if (!isPositiveNumber3(p.durationMinutes) || !isNonNegativeNumber2(p.finishBy)) return void 0;
+    return {
+      recipeId: p.recipeId,
+      workActionPointId: p.workActionPointId,
+      workPosition: { ...p.workPosition },
+      storageContainerId: p.storageContainerId,
+      ...inputItemType ? { inputItemType } : {},
+      ...inputItemCategory ? { inputItemCategory } : {},
+      ...isFoodKind(p.inputFoodKind) ? { inputFoodKind: p.inputFoodKind } : {},
+      reserveInputStock: p.reserveInputStock,
+      outputType: p.outputType,
+      outputFoodKind: p.outputFoodKind,
+      ...typeof p.outputHungerRelief === "number" ? { outputHungerRelief: p.outputHungerRelief } : {},
+      ...typeof p.outputStomachVolume === "number" ? { outputStomachVolume: p.outputStomachVolume } : {},
+      durationMinutes: p.durationMinutes,
+      finishBy: p.finishBy
+    };
+  }
+  function isPosition8(value) {
+    if (!value || typeof value !== "object") return false;
+    const candidate = value;
+    return typeof candidate.x === "number" && typeof candidate.y === "number";
+  }
+  function isPositiveNumber3(value) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0;
+  }
+  function isNonNegativeNumber2(value) {
+    return typeof value === "number" && Number.isFinite(value) && value >= 0;
+  }
+  function isNonNegativeInteger3(value) {
+    return typeof value === "number" && Number.isInteger(value) && value >= 0;
+  }
+
   // src/planning/StagedWorkplacePlans.ts
   var stagedWorkplacePlans = [
+    ...foodPreservationPlans,
     {
       id: "manage-staged-workplace-production",
       name: "Manage Staged Workplace Production",
@@ -10038,21 +10134,30 @@
     if (!p) return void 0;
     const operation = p.operation;
     if (operation !== "start" && operation !== "advance" && operation !== "wait") return void 0;
-    if (typeof p.recipeId !== "string" || typeof p.workActionPointId !== "string" || !isPosition8(p.workPosition) || typeof p.outputContainerId !== "string" || typeof p.outputType !== "string" || typeof p.liquidRoomResourceId !== "string" || typeof p.liquidType !== "string") return void 0;
+    if (typeof p.recipeId !== "string" || typeof p.workActionPointId !== "string" || !isPosition9(p.workPosition) || typeof p.outputContainerId !== "string" || typeof p.outputType !== "string" || typeof p.liquidRoomResourceId !== "string" || typeof p.liquidType !== "string") return void 0;
     const inputItemType = typeof p.inputItemType === "string" && p.inputItemType.length > 0 ? p.inputItemType : void 0;
     const inputItemCategory = isItemCategory(p.inputItemCategory) ? p.inputItemCategory : void 0;
     if (!inputItemType && !inputItemCategory) return void 0;
     if (p.inputItemCategory !== void 0 && !inputItemCategory) return void 0;
+    const secondaryInputItemType = typeof p.secondaryInputItemType === "string" && p.secondaryInputItemType.length > 0 ? p.secondaryInputItemType : void 0;
+    const secondaryInputItemCategory = isItemCategory(p.secondaryInputItemCategory) ? p.secondaryInputItemCategory : void 0;
+    const hasSecondaryInput = p.secondaryInputItemType !== void 0 || p.secondaryInputItemCategory !== void 0 || p.secondaryInputFoodKind !== void 0 || p.secondaryInputCountPerBatch !== void 0;
+    if (hasSecondaryInput) {
+      if (!secondaryInputItemType && !secondaryInputItemCategory) return void 0;
+      if (p.secondaryInputItemCategory !== void 0 && !secondaryInputItemCategory) return void 0;
+      if (p.secondaryInputFoodKind !== void 0 && !isFoodKind(p.secondaryInputFoodKind)) return void 0;
+      if (!isPositiveInteger3(p.secondaryInputCountPerBatch)) return void 0;
+    }
     if (p.outputFoodKind !== void 0 && !isFoodKind(p.outputFoodKind)) return void 0;
     if (p.outputDishId !== void 0 && (typeof p.outputDishId !== "string" || p.outputDishId.length === 0)) return void 0;
-    if (p.outputHungerRelief !== void 0 && !isPositiveNumber3(p.outputHungerRelief)) return void 0;
-    if (p.outputHydrationRelief !== void 0 && !isNonNegativeNumber2(p.outputHydrationRelief)) return void 0;
-    if (p.outputStomachVolume !== void 0 && !isPositiveNumber3(p.outputStomachVolume)) return void 0;
-    if (p.outputShelfLifeMinutes !== void 0 && !isPositiveNumber3(p.outputShelfLifeMinutes)) return void 0;
+    if (p.outputHungerRelief !== void 0 && !isPositiveNumber4(p.outputHungerRelief)) return void 0;
+    if (p.outputHydrationRelief !== void 0 && !isNonNegativeNumber3(p.outputHydrationRelief)) return void 0;
+    if (p.outputStomachVolume !== void 0 && !isPositiveNumber4(p.outputStomachVolume)) return void 0;
+    if (p.outputShelfLifeMinutes !== void 0 && !isPositiveNumber4(p.outputShelfLifeMinutes)) return void 0;
     if (p.inputFoodKind !== void 0 && !isFoodKind(p.inputFoodKind)) return void 0;
-    if (!isPositiveInteger3(p.targetStock) || !isPositiveInteger3(p.outputCountPerBatch) || !isPositiveInteger3(p.inputCountPerBatch) || !isPositiveNumber3(p.liquidAmountPerBatch) || !isNonNegativeNumber2(p.finishBy) || !isNonNegativeInteger3(p.stageIndex) || typeof p.stageId !== "string" || !isPositiveNumber3(p.stageActiveMinutes) || !isNonNegativeNumber2(p.passiveMinutesAfter)) return void 0;
+    if (!isPositiveInteger3(p.targetStock) || !isPositiveInteger3(p.outputCountPerBatch) || !isPositiveInteger3(p.inputCountPerBatch) || !isPositiveNumber4(p.liquidAmountPerBatch) || !isNonNegativeNumber3(p.finishBy) || !isNonNegativeInteger4(p.stageIndex) || typeof p.stageId !== "string" || !isPositiveNumber4(p.stageActiveMinutes) || !isNonNegativeNumber3(p.passiveMinutesAfter)) return void 0;
     if (p.jobItemId !== void 0 && typeof p.jobItemId !== "string") return void 0;
-    if (p.readyAt !== void 0 && !isNonNegativeNumber2(p.readyAt)) return void 0;
+    if (p.readyAt !== void 0 && !isNonNegativeNumber3(p.readyAt)) return void 0;
     if ((operation === "advance" || operation === "wait") && typeof p.jobItemId !== "string") return void 0;
     if (operation === "wait" && typeof p.readyAt !== "number") return void 0;
     if (!Array.isArray(p.stages) || p.stages.length === 0) return void 0;
@@ -10060,7 +10165,7 @@
     for (const value of p.stages) {
       if (!value || typeof value !== "object") return void 0;
       const stage = value;
-      if (typeof stage.id !== "string" || !isPositiveNumber3(stage.activeMinutes) || !isNonNegativeNumber2(stage.passiveMinutesAfter)) return void 0;
+      if (typeof stage.id !== "string" || !isPositiveNumber4(stage.activeMinutes) || !isNonNegativeNumber3(stage.passiveMinutesAfter)) return void 0;
       stages.push({
         id: stage.id,
         activeMinutes: stage.activeMinutes,
@@ -10087,6 +10192,12 @@
       ...inputItemCategory ? { inputItemCategory } : {},
       ...isFoodKind(p.inputFoodKind) ? { inputFoodKind: p.inputFoodKind } : {},
       inputCountPerBatch: p.inputCountPerBatch,
+      ...secondaryInputItemType ? { secondaryInputItemType } : {},
+      ...secondaryInputItemCategory ? { secondaryInputItemCategory } : {},
+      ...isFoodKind(p.secondaryInputFoodKind) ? { secondaryInputFoodKind: p.secondaryInputFoodKind } : {},
+      ...typeof p.secondaryInputCountPerBatch === "number" ? {
+        secondaryInputCountPerBatch: p.secondaryInputCountPerBatch
+      } : {},
       liquidRoomResourceId: p.liquidRoomResourceId,
       liquidType: p.liquidType,
       liquidAmountPerBatch: p.liquidAmountPerBatch,
@@ -10100,7 +10211,7 @@
       ...typeof p.readyAt === "number" ? { readyAt: p.readyAt } : {}
     };
   }
-  function isPosition8(value) {
+  function isPosition9(value) {
     if (!value || typeof value !== "object") return false;
     const candidate = value;
     return typeof candidate.x === "number" && typeof candidate.y === "number";
@@ -10108,13 +10219,13 @@
   function isPositiveInteger3(value) {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
   }
-  function isNonNegativeInteger3(value) {
+  function isNonNegativeInteger4(value) {
     return typeof value === "number" && Number.isInteger(value) && value >= 0;
   }
-  function isPositiveNumber3(value) {
+  function isPositiveNumber4(value) {
     return typeof value === "number" && Number.isFinite(value) && value > 0;
   }
-  function isNonNegativeNumber2(value) {
+  function isNonNegativeNumber3(value) {
     return typeof value === "number" && Number.isFinite(value) && value >= 0;
   }
 
@@ -10299,22 +10410,22 @@
     const position = goal.parameters?.position;
     if (typeof servicePointId !== "string") return void 0;
     if (desiredState !== "open" && desiredState !== "closed") return void 0;
-    if (!isPosition9(position)) return void 0;
+    if (!isPosition10(position)) return void 0;
     return { servicePointId, desiredState, position };
   }
   function workplaceProductionGoalParameters(goal) {
     if (!goal) return void 0;
     const p = goal.parameters;
-    if (!p || typeof p.recipeId !== "string" || typeof p.workActionPointId !== "string" || !isPosition9(p.workPosition)) return void 0;
+    if (!p || typeof p.recipeId !== "string" || typeof p.workActionPointId !== "string" || !isPosition10(p.workPosition)) return void 0;
     if (typeof p.outputContainerId !== "string" || typeof p.outputType !== "string") return void 0;
     if (p.outputFoodKind !== void 0 && !isFoodKind(p.outputFoodKind)) return void 0;
-    if (p.outputHungerRelief !== void 0 && !isPositiveNumber4(p.outputHungerRelief)) return void 0;
-    if (p.outputStomachVolume !== void 0 && !isPositiveNumber4(p.outputStomachVolume)) return void 0;
+    if (p.outputHungerRelief !== void 0 && !isPositiveNumber5(p.outputHungerRelief)) return void 0;
+    if (p.outputStomachVolume !== void 0 && !isPositiveNumber5(p.outputStomachVolume)) return void 0;
     if (!isPositiveInteger4(p.targetStock) || !isPositiveInteger4(p.outputCountPerBatch)) return void 0;
     if (typeof p.inputItemType !== "string" || !isPositiveInteger4(p.inputCountPerBatch)) return void 0;
     if (typeof p.liquidRoomResourceId !== "string" || typeof p.liquidType !== "string") return void 0;
-    if (!isPositiveNumber4(p.liquidAmountPerBatch) || !isPositiveNumber4(p.durationMinutes)) return void 0;
-    if (p.finishBy !== void 0 && !isNonNegativeNumber3(p.finishBy)) return void 0;
+    if (!isPositiveNumber5(p.liquidAmountPerBatch) || !isPositiveNumber5(p.durationMinutes)) return void 0;
+    if (p.finishBy !== void 0 && !isNonNegativeNumber4(p.finishBy)) return void 0;
     return {
       recipeId: p.recipeId,
       workActionPointId: p.workActionPointId,
@@ -10340,7 +10451,7 @@
     if (!p || typeof p.carrierItemId !== "string" || typeof p.carrierHomeContainerId !== "string") {
       return void 0;
     }
-    if (!isPosition9(p.storagePosition)) return void 0;
+    if (!isPosition10(p.storagePosition)) return void 0;
     return {
       carrierItemId: p.carrierItemId,
       carrierHomeContainerId: p.carrierHomeContainerId,
@@ -10358,7 +10469,7 @@
     if (p.foodKind !== void 0 && !isFoodKind(p.foodKind)) return void 0;
     if (!isPositiveInteger4(p.quantity) || !isPositiveInteger4(p.targetStock)) return void 0;
     if (!Number.isInteger(p.maxUnitPrice) || p.maxUnitPrice < 0) return void 0;
-    if (typeof p.carrierItemId !== "string" || typeof p.carrierHomeContainerId !== "string" || typeof p.storageContainerId !== "string" || !isPosition9(p.storagePosition)) return void 0;
+    if (typeof p.carrierItemId !== "string" || typeof p.carrierHomeContainerId !== "string" || typeof p.storageContainerId !== "string" || !isPosition10(p.storagePosition)) return void 0;
     return {
       service: p.service,
       ...isServiceOfferingType(p.offering) ? { offering: p.offering } : {},
@@ -10377,9 +10488,9 @@
   function workplaceLiquidReserveGoalParameters(goal) {
     if (!goal) return void 0;
     const p = goal.parameters;
-    if (!p || typeof p.reserveId !== "string" || typeof p.roomId !== "string" || !isPosition9(p.roomPosition) || typeof p.bucketItemId !== "string") return void 0;
-    if (typeof p.sourceId !== "string" || !isPosition9(p.sourcePosition)) return void 0;
-    if (typeof p.liquidType !== "string" || !isPositiveNumber4(p.targetAmount)) return void 0;
+    if (!p || typeof p.reserveId !== "string" || typeof p.roomId !== "string" || !isPosition10(p.roomPosition) || typeof p.bucketItemId !== "string") return void 0;
+    if (typeof p.sourceId !== "string" || !isPosition10(p.sourcePosition)) return void 0;
+    if (typeof p.liquidType !== "string" || !isPositiveNumber5(p.targetAmount)) return void 0;
     return {
       reserveId: p.reserveId,
       roomId: p.roomId,
@@ -10394,8 +10505,8 @@
   function personalWaterReserveGoalParameters(goal) {
     if (!goal) return void 0;
     const p = goal.parameters;
-    if (!p || typeof p.sourceRoomResourceId !== "string" || typeof p.roomId !== "string" || !isPosition9(p.roomPosition) || typeof p.portableItemId !== "string") return void 0;
-    if (!isPositiveNumber4(p.targetAmount)) return void 0;
+    if (!p || typeof p.sourceRoomResourceId !== "string" || typeof p.roomId !== "string" || !isPosition10(p.roomPosition) || typeof p.portableItemId !== "string") return void 0;
+    if (!isPositiveNumber5(p.targetAmount)) return void 0;
     return {
       sourceRoomResourceId: p.sourceRoomResourceId,
       roomId: p.roomId,
@@ -10423,7 +10534,7 @@
       (possession) => possession.location.type === "container" && possession.location.containerId === parameters.storageContainerId && itemMatchesSelector(possession.item, parameters)
     ).length;
   }
-  function isPosition9(value) {
+  function isPosition10(value) {
     if (!value || typeof value !== "object") return false;
     const candidate = value;
     return typeof candidate.x === "number" && typeof candidate.y === "number";
@@ -10431,10 +10542,10 @@
   function isPositiveInteger4(value) {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
   }
-  function isPositiveNumber4(value) {
+  function isPositiveNumber5(value) {
     return typeof value === "number" && Number.isFinite(value) && value > 0;
   }
-  function isNonNegativeNumber3(value) {
+  function isNonNegativeNumber4(value) {
     return typeof value === "number" && Number.isFinite(value) && value >= 0;
   }
 
@@ -10491,7 +10602,7 @@
   function huntHookcrestGoalParameters(goal) {
     if (!goal || goal.type !== "huntHookcrest" || !goal.parameters) return void 0;
     const p = goal.parameters;
-    if (typeof p.activityId !== "string" || typeof p.habitatId !== "string" || p.speciesId !== "hookcrest" || !isPosition10(p.position) || typeof p.bowItemId !== "string" || typeof p.carrierSlot !== "string") return void 0;
+    if (typeof p.activityId !== "string" || typeof p.habitatId !== "string" || p.speciesId !== "hookcrest" || !isPosition11(p.position) || typeof p.bowItemId !== "string" || typeof p.carrierSlot !== "string") return void 0;
     return {
       activityId: p.activityId,
       habitatId: p.habitatId,
@@ -10504,7 +10615,7 @@
   function dressHookcrestGoalParameters(goal) {
     if (!goal || goal.type !== "dressHookcrest" || !goal.parameters) return void 0;
     const p = goal.parameters;
-    if (typeof p.activityId !== "string" || typeof p.carcassItemId !== "string" || typeof p.carrierSlot !== "string" || typeof p.facilityId !== "string" || typeof p.actionPointId !== "string" || !isPosition10(p.position)) return void 0;
+    if (typeof p.activityId !== "string" || typeof p.carcassItemId !== "string" || typeof p.carrierSlot !== "string" || typeof p.facilityId !== "string" || typeof p.actionPointId !== "string" || !isPosition11(p.position)) return void 0;
     return {
       activityId: p.activityId,
       carcassItemId: p.carcassItemId,
@@ -10517,7 +10628,7 @@
   function butcherHookcrestGoalParameters(goal) {
     if (!goal || goal.type !== "butcherHookcrest" || !goal.parameters) return void 0;
     const p = goal.parameters;
-    if (typeof p.activityId !== "string" || typeof p.carcassItemId !== "string" || typeof p.facilityId !== "string" || typeof p.actionPointId !== "string" || !isPosition10(p.position) || typeof p.outputContainerId !== "string" || !Number.isInteger(p.yieldCount) || p.yieldCount <= 0) return void 0;
+    if (typeof p.activityId !== "string" || typeof p.carcassItemId !== "string" || typeof p.facilityId !== "string" || typeof p.actionPointId !== "string" || !isPosition11(p.position) || typeof p.outputContainerId !== "string" || !Number.isInteger(p.yieldCount) || p.yieldCount <= 0) return void 0;
     return {
       activityId: p.activityId,
       carcassItemId: p.carcassItemId,
@@ -10538,7 +10649,7 @@
       }
     }];
   }
-  function isPosition10(value) {
+  function isPosition11(value) {
     if (!value || typeof value !== "object") return false;
     const candidate = value;
     return typeof candidate.x === "number" && Number.isFinite(candidate.x) && typeof candidate.y === "number" && Number.isFinite(candidate.y);
@@ -11516,7 +11627,7 @@
     );
     if (!observation) return void 0;
     const position = observation.context?.position;
-    if (!isPosition11(position)) return void 0;
+    if (!isPosition12(position)) return void 0;
     const identifiedPersonId = observation.context?.identifiedPersonId;
     if (typeof identifiedPersonId === "string") {
       const identified = world2.characters.find((candidate) => candidate.id === identifiedPersonId);
@@ -11528,7 +11639,7 @@
     );
     return physicallyMatching.length === 1 ? physicallyMatching[0] : void 0;
   }
-  function isPosition11(value) {
+  function isPosition12(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -11753,7 +11864,7 @@
   function findNewSearchPersonTarget(state2, character) {
     const memory = character.memory.getByType("person-observed").filter((candidate) => !state2.initialObservationIds.includes(candidate.subjectId)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
     const position = memory?.context?.position;
-    if (!memory || !isPosition12(position)) return void 0;
+    if (!memory || !isPosition13(position)) return void 0;
     const personId = memory.context?.identifiedPersonId;
     if (typeof personId === "string") {
       return {
@@ -11884,7 +11995,7 @@
     );
     return distance10 <= CHARACTER_PERSON_APPROACH_RANGE_METRES + 1e-6 && arePositionsWithinConversationRange(character.position, personPosition, world2);
   }
-  function isPosition12(value) {
+  function isPosition13(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -11904,7 +12015,7 @@
       return { status: "not-observed" };
     }
     if (character.knownPeople.has(providerId)) {
-      const observed = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition13(memory.context?.position)).filter((memory) => isWithinConversationRange(distance3(character.position, memory.context.position))).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
+      const observed = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition14(memory.context?.position)).filter((memory) => isWithinConversationRange(distance3(character.position, memory.context.position))).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
       if (!observed) return { status: "not-observed" };
       const observedPosition2 = observed.context.position;
       const provider = world2.characters.find((candidate2) => candidate2.id === providerId);
@@ -11917,7 +12028,7 @@
       }
       return { status: "ready", provider };
     }
-    const observation = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === void 0).filter((memory) => isPosition13(memory.context?.position)).filter((memory) => {
+    const observation = character.memory.getByType("person-observed").filter((memory) => memory.lastObservedAt === world2.time).filter((memory) => memory.context?.identifiedPersonId === void 0).filter((memory) => isPosition14(memory.context?.position)).filter((memory) => {
       const position = memory.context.position;
       return distance3(position, target.position) <= EXPECTED_PROVIDER_POSITION_TOLERANCE_METRES && isWithinConversationRange(distance3(character.position, position));
     }).filter((memory) => !hasRecentIdentityCheck(character, providerId, memory.subjectId, world2.time)).sort((first, second) => {
@@ -11964,7 +12075,7 @@
       context: { providerId, observationId }
     });
   }
-  function isPosition13(value) {
+  function isPosition14(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -12753,9 +12864,9 @@
     if (p.inputItemType === void 0 && p.inputItemCategory === void 0) return void 0;
     if (!isPositiveInteger5(p.inputCount)) return void 0;
     if (typeof p.outputItemType !== "string" || !isPositiveInteger5(p.outputCount)) return void 0;
-    if (!isNonNegativeInteger4(p.price) || !isPositiveNumber5(p.expectedDuration)) return void 0;
-    if (typeof p.workActionPointId !== "string" || !isPosition14(p.workPosition)) return void 0;
-    if (typeof p.returnActionPointId !== "string" || !isPosition14(p.returnPosition)) return void 0;
+    if (!isNonNegativeInteger5(p.price) || !isPositiveNumber6(p.expectedDuration)) return void 0;
+    if (typeof p.workActionPointId !== "string" || !isPosition15(p.workPosition)) return void 0;
+    if (typeof p.returnActionPointId !== "string" || !isPosition15(p.returnPosition)) return void 0;
     return {
       requestId: p.requestId,
       service: p.service,
@@ -12805,7 +12916,7 @@
   function distance4(first, second) {
     return Math.hypot(first.x - second.x, first.y - second.y);
   }
-  function isPosition14(value) {
+  function isPosition15(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -12813,10 +12924,10 @@
   function isPositiveInteger5(value) {
     return typeof value === "number" && Number.isInteger(value) && value > 0;
   }
-  function isNonNegativeInteger4(value) {
+  function isNonNegativeInteger5(value) {
     return typeof value === "number" && Number.isInteger(value) && value >= 0;
   }
-  function isPositiveNumber5(value) {
+  function isPositiveNumber6(value) {
     return typeof value === "number" && Number.isFinite(value) && value > 0;
   }
 
@@ -13668,14 +13779,32 @@
     const currentRoom = world2.getRoomAtPosition(character.position);
     if (!liquidResource || currentRoom?.id !== liquidResource.roomId || liquidResource.liquidType !== p.liquidType) return { status: "failed" };
     rememberRoomLiquidResource(character, liquidResource, world2.time);
-    const inputs = character.physical.getAll().filter((possession) => itemMatchesSelector(possession.item, {
-      ...p.inputItemType !== void 0 ? { itemType: p.inputItemType } : {},
-      ...p.inputItemCategory !== void 0 ? { itemCategory: p.inputItemCategory } : {},
-      ...p.inputFoodKind !== void 0 ? { foodKind: p.inputFoodKind } : {}
-    })).filter((possession) => accessibility.canAccess(character, possession)).slice(0, p.inputCountPerBatch);
+    const inputs = selectInputs(
+      character,
+      accessibility,
+      {
+        ...p.inputItemType !== void 0 ? { itemType: p.inputItemType } : {},
+        ...p.inputItemCategory !== void 0 ? { itemCategory: p.inputItemCategory } : {},
+        ...p.inputFoodKind !== void 0 ? { foodKind: p.inputFoodKind } : {}
+      },
+      p.inputCountPerBatch
+    );
     if (inputs.length < p.inputCountPerBatch) return { status: "failed" };
+    const excludedInputIds = new Set(inputs.map((input) => input.item.id));
+    const secondaryInputs = p.secondaryInputCountPerBatch !== void 0 ? selectInputs(
+      character,
+      accessibility,
+      {
+        ...p.secondaryInputItemType !== void 0 ? { itemType: p.secondaryInputItemType } : {},
+        ...p.secondaryInputItemCategory !== void 0 ? { itemCategory: p.secondaryInputItemCategory } : {},
+        ...p.secondaryInputFoodKind !== void 0 ? { foodKind: p.secondaryInputFoodKind } : {}
+      },
+      p.secondaryInputCountPerBatch,
+      excludedInputIds
+    ) : [];
+    if (p.secondaryInputCountPerBatch !== void 0 && secondaryInputs.length < p.secondaryInputCountPerBatch) return { status: "failed" };
     if (liquidResource.amount < p.liquidAmountPerBatch) return { status: "failed" };
-    for (const input of inputs) character.physical.remove(input.item.id);
+    for (const input of [...inputs, ...secondaryInputs]) character.physical.remove(input.item.id);
     if (world2.roomResources.consumeLiquid(p.liquidRoomResourceId, p.liquidAmountPerBatch) < p.liquidAmountPerBatch) {
       return { status: "failed" };
     }
@@ -13779,6 +13908,9 @@
         return true;
       }
     );
+  }
+  function selectInputs(character, accessibility, selector2, count, excludedIds = /* @__PURE__ */ new Set()) {
+    return character.physical.getAll().filter((possession) => !excludedIds.has(possession.item.id)).filter((possession) => itemMatchesSelector(possession.item, selector2)).filter((possession) => accessibility.canAccess(character, possession)).slice(0, count);
   }
   function ensureDockedOccupancy2(character, world2, actionPointId) {
     const point = world2.getActionPoint(actionPointId);
@@ -14471,6 +14603,66 @@
     return Math.hypot(first.x - second.x, first.y - second.y);
   }
 
+  // src/planning/FoodPreservationExecution.ts
+  function registerFoodPreservationHandlers(registry, accessibility) {
+    if (!registry.has("preserve-surplus-food")) {
+      registry.register(
+        "preserve-surplus-food",
+        (plan, character, world2) => preserveSurplusFood(plan, character, world2, accessibility)
+      );
+    }
+  }
+  function preserveSurplusFood(plan, character, world2, accessibility) {
+    const p = surplusFoodPreservationGoalParameters(plan.goal);
+    if (!p) return { status: "failed" };
+    if (plan.executionState?.preservationCompleted === true) return { status: "completed" };
+    if (!ensureDockedOccupancy3(character, world2, p.workActionPointId)) return { status: "failed" };
+    if (world2.time + p.durationMinutes > p.finishBy) return { status: "failed" };
+    const candidates = availableInput(character, accessibility, p);
+    if (candidates.length <= p.reserveInputStock) return { status: "completed" };
+    const input = candidates[0];
+    character.physical.remove(input.item.id);
+    const readyAt = world2.time + p.durationMinutes;
+    logSimulation(world2, "event", `${character.name} begins ${p.recipeId}`);
+    return startAction(character, world2, `preserve:${p.recipeId}:${input.item.id}`, p.durationMinutes, 2, () => {
+      if (world2.time < readyAt) return false;
+      const outputId = `${character.id}-${p.recipeId}-${world2.time}-${input.item.id}`;
+      character.physical.add({
+        id: outputId,
+        type: p.outputType,
+        size: "small",
+        physical: { carryHands: 1, useHands: 1 },
+        food: {
+          kind: p.outputFoodKind,
+          ...p.outputStomachVolume !== void 0 ? {
+            stomachVolume: p.outputStomachVolume
+          } : {},
+          ...p.outputHungerRelief !== void 0 ? {
+            directlyEdible: { hungerRelief: p.outputHungerRelief }
+          } : {}
+        }
+      }, { type: "container", containerId: p.storageContainerId });
+      world2.ownership.setOwner(outputId, character.id);
+      plan.executionState = { ...plan.executionState ?? {}, preservationCompleted: true };
+      logSimulation(world2, "event", `${character.name} finishes ${p.recipeId} and stores ${p.outputFoodKind}`);
+      return true;
+    });
+  }
+  function availableInput(character, accessibility, p) {
+    return character.physical.getAll().filter(
+      (possession) => possession.location.type === "container" && possession.location.containerId === p.storageContainerId && itemMatchesSelector(possession.item, {
+        ...p.inputItemType !== void 0 ? { itemType: p.inputItemType } : {},
+        ...p.inputItemCategory !== void 0 ? { itemCategory: p.inputItemCategory } : {},
+        ...p.inputFoodKind !== void 0 ? { foodKind: p.inputFoodKind } : {}
+      })
+    ).filter((possession) => accessibility.canAccess(character, possession));
+  }
+  function ensureDockedOccupancy3(character, world2, actionPointId) {
+    const point = world2.getActionPoint(actionPointId);
+    if (!point || !isAtActionPoint(character.position, point)) return false;
+    return world2.resourceUsage.claim(point.id, character.id, point.capacity);
+  }
+
   // src/planning/PlanExecutor.ts
   var PlanExecutor = class {
     constructor(commerce, social, accessibility, movement, executionRegistry = new PlanExecutionRegistry()) {
@@ -14513,6 +14705,7 @@
       registerWorkplaceHandlers(this.executionRegistry, this.accessibility, this.movement);
       registerStagedWorkplaceHandlers(this.executionRegistry, this.accessibility);
       registerWorkplaceProcurementHandlers(this.executionRegistry, this.social, this.movement);
+      registerFoodPreservationHandlers(this.executionRegistry, this.accessibility);
       registerAgricultureHandlers(this.executionRegistry);
       registerHuntingHandlers(this.executionRegistry);
     }
@@ -16608,7 +16801,7 @@
   }
   function personTargetFromMemory(memory, character) {
     const position = memory.context?.position;
-    if (!isPosition15(position)) return void 0;
+    if (!isPosition16(position)) return void 0;
     const personId = memory.context?.identifiedPersonId;
     const distance10 = Math.hypot(position.x - character.position.x, position.y - character.position.y);
     if (typeof personId === "string") {
@@ -16671,7 +16864,7 @@
     logSimulation(world2, "event", `${character.name} starts ${type}; expected ${expectedDuration}m`);
     return { status: "started" };
   }
-  function isPosition15(value) {
+  function isPosition16(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -16907,7 +17100,7 @@
   }
   function bestKnownProviderLocation(character, providerId) {
     if (providerId === character.id) return { ...character.position };
-    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition16(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
+    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === providerId).filter((memory) => isPosition17(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
     const known = character.knowledge.filter(
       (knowledge) => knowledge.type === "person-location" && knowledge.subjectId === providerId && knowledge.polarity === "positive" && knowledge.position !== void 0
     ).sort((first, second) => second.learnedAt - first.learnedAt)[0];
@@ -16938,7 +17131,7 @@
       }
     });
   }
-  function isPosition16(value) {
+  function isPosition17(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -17318,7 +17511,10 @@
   }
   function findPreparedMealStock(seller) {
     const possessions = seller.physical.getAll();
-    return possessions.find((possession) => isPreparedMealDish(possession.item)) ?? possessions.find((possession) => possession.item.type === "meal-stock");
+    const preparedMeals = possessions.filter((possession) => isPreparedMealDish(possession.item)).sort(
+      (first, second) => (second.item.food?.directlyEdible?.hungerRelief ?? 0) - (first.item.food?.directlyEdible?.hungerRelief ?? 0)
+    );
+    return preparedMeals[0] ?? possessions.find((possession) => possession.item.type === "meal-stock");
   }
   function isPreparedMealDish(item) {
     return item.type === "food" && item.food?.kind === "prepared-meal" && isDirectlyEdibleFood(item);
@@ -17592,7 +17788,7 @@
   function getSelectedPlace(character, plan) {
     const selectedId = typeof plan.executionState?.servicePlaceId === "string" ? plan.executionState.servicePlaceId : plan.target?.type === "location" && typeof plan.target.subjectId === "string" ? plan.target.subjectId : void 0;
     if (!selectedId) return void 0;
-    return character.memory.getByType("place-observed").filter((memory) => memory.subjectId === selectedId || memory.context?.knownPlaceId === selectedId).filter((memory) => isPosition17(memory.context?.position)).map((memory) => ({ id: selectedId, position: { ...memory.context.position } }))[0];
+    return character.memory.getByType("place-observed").filter((memory) => memory.subjectId === selectedId || memory.context?.knownPlaceId === selectedId).filter((memory) => isPosition18(memory.context?.position)).map((memory) => ({ id: selectedId, position: { ...memory.context.position } }))[0];
   }
   function hasCurrentLocationKnowledge2(character, providerId) {
     return character.knowledge.some(
@@ -17601,7 +17797,7 @@
   }
   function personTargetFromMemory2(memory, character) {
     const position = memory.context?.position;
-    if (!isPosition17(position)) return void 0;
+    if (!isPosition18(position)) return void 0;
     const personId = memory.context?.identifiedPersonId;
     const distance10 = Math.hypot(position.x - character.position.x, position.y - character.position.y);
     if (typeof personId === "string") {
@@ -17630,7 +17826,7 @@
     logSimulation(world2, "event", `${character.name} starts ${type}; expected ${expectedDuration}m`);
     return { status: "started" };
   }
-  function isPosition17(value) {
+  function isPosition18(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -17993,7 +18189,7 @@
     );
   }
   function bestKnownPersonLocation(character, personId) {
-    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === personId).filter((memory) => isPosition18(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
+    const observed = character.memory.getByType("person-observed").filter((memory) => memory.context?.identifiedPersonId === personId).filter((memory) => isPosition19(memory.context?.position)).sort((first, second) => second.lastObservedAt - first.lastObservedAt)[0];
     if (observed) return { ...observed.context.position };
     const knowledge = character.knowledge.filter(
       (item) => item.type === "person-location" && item.subjectId === personId && item.polarity === "positive" && item.position !== void 0
@@ -18037,7 +18233,7 @@
     logSimulation(world2, "event", `${character.name} starts ${type}; expected ${expectedDuration}m`);
     return { status: "started" };
   }
-  function isPosition18(value) {
+  function isPosition19(value) {
     if (!value || typeof value !== "object") return false;
     const position = value;
     return typeof position.x === "number" && typeof position.y === "number";
@@ -18914,245 +19110,80 @@
     }
   };
 
-  // src/scenarios/DefaultTavernProcurement.ts
-  var DEFAULT_TAVERN_VEGETABLE_TARGET_STOCK = 8;
-  var DEFAULT_DAVE_VEGETABLE_PRICE = 3;
-  var DEFAULT_TAVERN_BASKET_ID = "emma-tavern-basket";
-  var DEFAULT_TAVERN_BUCKET_ID = "emma-tavern-bucket";
-  var DEFAULT_WORKPLACE_BASKET_CAPACITY = 12;
-  var DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY = 58;
-  function configureDefaultTavernIngredientProcurement(world2, layout, emma, dave) {
-    const kitchenId = tavernKitchenId("village-tavern");
-    const kitchenPosition = tavernKitchenWorkPosition(layout.tavern.position);
-    const cartCustomerPosition = {
-      x: (layout.daveCartPosition.x + layout.daveSellingPosition.x) / 2,
-      y: (layout.daveCartPosition.y + layout.daveSellingPosition.y) / 2
-    };
-    emma.physical.add({
-      id: DEFAULT_TAVERN_BASKET_ID,
-      type: "basket",
-      size: "medium",
-      physical: { carryHands: 1, useHands: 1 },
-      solidContainer: { capacity: DEFAULT_WORKPLACE_BASKET_CAPACITY }
-    }, { type: "container", containerId: kitchenId });
-    emma.physical.add({
-      id: DEFAULT_TAVERN_BUCKET_ID,
-      type: "bucket",
-      size: "medium",
-      physical: { carryHands: 1, useHands: 1 },
-      liquidContainer: { capacity: 4 }
-    }, { type: "container", containerId: kitchenId });
-    world2.ownership.setOwner(DEFAULT_TAVERN_BASKET_ID, emma.id);
-    world2.ownership.setOwner(DEFAULT_TAVERN_BUCKET_ID, emma.id);
-    emma.addActivity(new WorkplaceProcurementActivity({
-      id: "emma-restock-stew-vegetables",
-      name: "Restock Stew Vegetables",
-      service: "food",
-      offering: "portable-food",
-      itemCategory: "vegetable",
-      targetStock: DEFAULT_TAVERN_VEGETABLE_TARGET_STOCK,
-      maxPurchaseQuantity: DEFAULT_WORKPLACE_BASKET_CAPACITY,
-      estimatedUnitStorageVolume: 1,
-      maxUnitPrice: DEFAULT_DAVE_VEGETABLE_PRICE,
-      storageContainerId: kitchenId,
-      storagePosition: { ...kitchenPosition },
-      priority: DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY
-    }));
-    emma.addActivity(new WorkplaceLiquidReserveActivity({
-      id: "emma-tavern-water-reserve",
-      name: "Fill Tavern Kitchen Water Reserve",
-      reserveId: "emma-tavern-water-barrel",
-      roomId: tavernRoomIds("village-tavern").common,
-      roomPosition: { ...kitchenPosition },
-      bucketItemId: DEFAULT_TAVERN_BUCKET_ID,
-      sourceId: "village-fountain",
-      liquidType: "water",
-      targetAmount: 24,
-      // Refill after the morning cooking window rather than competing with it.
-      activeFrom: 8 * 60,
-      activeUntil: 17 * 60,
-      startMinuteOfDay: world2.startMinuteOfDay,
-      priority: DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY
-    }));
-    emma.knownPeople.add(dave.id);
-    emma.addKnowledge({
-      type: "service-provider",
-      subjectId: dave.id,
-      polarity: "positive",
-      context: {
-        service: "food",
-        placeId: "dave-cart",
-        offering: "portable-food",
-        itemCategory: "vegetable",
-        terms: {
-          price: DEFAULT_DAVE_VEGETABLE_PRICE,
-          expectedDuration: 5
-        }
-      },
-      sourceType: "world-initiation",
-      learnedAt: world2.time,
-      confidence: 1
-    });
-    emma.addKnowledge({
-      type: "service-place",
-      subjectId: "dave-cart",
-      polarity: "positive",
-      position: cartCustomerPosition,
-      context: { service: "food" },
-      sourceType: "world-initiation",
-      learnedAt: world2.time,
-      confidence: 1
-    });
-    emma.addKnowledge({
-      type: "service-hours",
-      subjectId: "dave-cart",
-      polarity: "positive",
-      context: {
-        service: "food",
-        hours: [{ startMinuteOfDay: 9 * 60, endMinuteOfDay: 17 * 60 }]
-      },
-      sourceType: "world-initiation",
-      learnedAt: world2.time,
-      confidence: 1
-    });
-    emma.addKnowledge({
-      type: "water-source",
-      subjectId: "village-fountain",
-      polarity: "positive",
-      position: { ...layout.fountainPosition },
-      sourceType: "world-initiation",
-      learnedAt: world2.time,
-      confidence: 1
-    });
-  }
-
-  // src/scenarios/DefaultHunter.ts
-  var DEFAULT_HUNTER_ID = "isaac";
-  var DEFAULT_HUNTER_HOME_ID = "isaac-home";
-  var DEFAULT_HUNTING_ACTIVITY_ID = "isaac-hookcrest-hunting";
-  var DEFAULT_HUNTING_BOW_ID = "isaac-hunting-bow";
-  var DEFAULT_BUTCHERING_TABLE_ID = "isaac-butchering-table";
-  var DEFAULT_GAME_LARDER_ID = "isaac-game-larder";
-  var DEFAULT_GAME_CARRIER_ID = "isaac-game-strap";
-  var DEFAULT_GAME_CARRIER_SLOTS = ["game-strap-1", "game-strap-2"];
-  function createDefaultHunter(world2, layout) {
-    const homeSite = layout.homes.isaac;
-    const hunter = new Character(DEFAULT_HUNTER_ID, "Isaac", { ...homeSite.position }, createPersonality({
-      frugality: 0.6,
-      caution: 0.7,
-      patience: 0.75,
-      conscientiousness: 0.75,
-      sociability: 0.35,
-      helpfulness: 0.6,
-      curiosity: 0.65,
-      assertiveness: 0.55,
-      integrity: 0.8,
-      emotionalStability: 0.8
-    }));
-    hunter.homeId = DEFAULT_HUNTER_HOME_ID;
-    hunter.hunger = 0;
-    hunter.thirst = 0;
-    hunter.tiredness = 25;
-    hunter.money = 10;
-    const baseHome = createHouse({
-      id: DEFAULT_HUNTER_HOME_ID,
-      ownerId: hunter.id,
-      position: { ...homeSite.position },
-      frontDoorSide: homeSite.frontDoorSide
-    });
-    const preparationPosition = { x: homeSite.position.x + 1, y: homeSite.position.y - 1 };
-    const facility = createFacility({
-      id: DEFAULT_BUTCHERING_TABLE_ID,
-      type: "butchering-table",
-      placeId: DEFAULT_HUNTER_HOME_ID,
-      position: { ...preparationPosition }
-    });
-    const butcheringTable = {
-      ...facility,
-      ownerId: hunter.id,
-      containerId: DEFAULT_GAME_LARDER_ID
-    };
-    const home = {
-      ...baseHome,
-      fixtures: [...baseHome.fixtures ?? [], butcheringTable]
-    };
-    const frontDoorId = `${home.id}-front-door`;
-    const insidePosition = home.physicalFootprint ? getDoorInsidePosition(home.physicalFootprint, frontDoorId) : void 0;
-    if (!insidePosition) throw new Error("Isaac's home requires an inside-operable front door.");
-    hunter.addActivity(new DoorScheduleActivity({
-      id: "isaac-home-front-door-hours",
-      doorId: frontDoorId,
-      placeId: home.id,
-      insidePosition,
-      opensAt: 6 * 60,
-      closesAt: 22 * 60,
-      startMinuteOfDay: world2.startMinuteOfDay,
-      initialState: "open"
-    }));
-    hunter.physical.add({
-      id: DEFAULT_HUNTING_BOW_ID,
-      type: "hunting-bow",
-      size: "medium",
-      physical: { carryHands: 1, useHands: 2 }
-    }, { type: "equipped", slot: "bow-sling" });
-    hunter.physical.add({
-      id: DEFAULT_GAME_CARRIER_ID,
-      type: "game-strap",
-      size: "small",
-      physical: { carryHands: 1, useHands: 1 }
-    }, { type: "equipped", slot: "game-strap" });
-    hunter.physical.add({
-      id: "isaac-waterskin",
-      type: "water-container",
-      size: "small",
-      physical: { carryHands: 1, useHands: 1 },
-      liquidContainer: { capacity: 1, contents: { type: "water", amount: 1 } }
-    }, { type: "equipped", slot: "waterskin" });
-    hunter.addActivity(new WaterPreparationActivity("isaac-water-preparation"));
-    for (const habitat of layout.hookcrestHabitats) {
-      world2.hunting.registerHabitat({
-        id: habitat.id,
-        speciesId: "hookcrest",
-        position: { ...habitat.position },
-        capacity: 1,
-        successChance: 0.65,
-        recoveryMinutes: 8 * 60,
-        disturbanceMinutes: 45
-      });
+  // src/activities/SurplusFoodPreservationActivity.ts
+  var MINUTES_PER_DAY21 = 24 * 60;
+  var SurplusFoodPreservationActivity = class {
+    constructor(options) {
+      this.options = options;
+      if (!options.inputItemType && !options.inputItemCategory) {
+        throw new Error("Surplus food preservation requires an input item type or category.");
+      }
+      if (!Number.isInteger(options.reserveInputStock) || options.reserveInputStock < 0) {
+        throw new Error("Surplus food preservation reserveInputStock must be a non-negative integer.");
+      }
+      if (!Number.isFinite(options.durationMinutes) || options.durationMinutes <= 0) {
+        throw new Error("Surplus food preservation durationMinutes must be positive.");
+      }
+      this.id = options.id;
+      this.name = options.name ?? "Preserve Surplus Food";
     }
-    hunter.addActivity(new HookcrestHuntingActivity({
-      id: DEFAULT_HUNTING_ACTIVITY_ID,
-      bowItemId: DEFAULT_HUNTING_BOW_ID,
-      gameCarrierSlots: DEFAULT_GAME_CARRIER_SLOTS,
-      habitats: layout.hookcrestHabitats.map((habitat) => ({
-        id: habitat.id,
-        speciesId: "hookcrest",
-        position: { ...habitat.position }
-      })),
-      homeSubjectId: home.id,
-      homePosition: { ...home.position },
-      preparationFacilityId: butcheringTable.id,
-      preparationActionPointId: facilityActionPointId(butcheringTable.id),
-      preparationPosition: { ...preparationPosition },
-      outputContainerId: DEFAULT_GAME_LARDER_ID,
-      meatYield: 3,
-      targetMeatStock: 3,
-      startMinuteOfDay: world2.startMinuteOfDay,
-      activeFrom: 8 * 60,
-      activeUntil: 17 * 60,
-      priority: 46
-    }));
-    world2.addObject(home);
-    return {
-      hunter,
-      home,
-      butcheringTable,
-      habitatIds: layout.hookcrestHabitats.map((habitat) => habitat.id)
-    };
+    getIntents({ character, time }) {
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY21;
+      if (!isActive5(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
+      const remainingWorkMinutes = minutesUntilEnd3(
+        minuteOfDay,
+        this.options.activeFrom,
+        this.options.activeUntil
+      );
+      if (remainingWorkMinutes < this.options.durationMinutes) return [];
+      const inputStock = character.physical.getAll().filter(
+        (possession) => possession.location.type === "container" && possession.location.containerId === this.options.storageContainerId && itemMatchesSelector(possession.item, {
+          ...this.options.inputItemType !== void 0 ? { itemType: this.options.inputItemType } : {},
+          ...this.options.inputItemCategory !== void 0 ? { itemCategory: this.options.inputItemCategory } : {},
+          ...this.options.inputFoodKind !== void 0 ? { foodKind: this.options.inputFoodKind } : {}
+        })
+      ).length;
+      if (inputStock <= this.options.reserveInputStock) return [];
+      return [{
+        id: `${character.id}:activity:${this.id}:preserve`,
+        source: { type: "activity", id: this.id },
+        goal: {
+          type: "preserveSurplusFood",
+          parameters: {
+            recipeId: this.options.recipeId,
+            workActionPointId: this.options.workActionPointId,
+            workPosition: { ...this.options.workPosition },
+            storageContainerId: this.options.storageContainerId,
+            ...this.options.inputItemType !== void 0 ? { inputItemType: this.options.inputItemType } : {},
+            ...this.options.inputItemCategory !== void 0 ? { inputItemCategory: this.options.inputItemCategory } : {},
+            ...this.options.inputFoodKind !== void 0 ? { inputFoodKind: this.options.inputFoodKind } : {},
+            reserveInputStock: this.options.reserveInputStock,
+            outputType: this.options.outputType,
+            outputFoodKind: this.options.outputFoodKind,
+            ...this.options.outputHungerRelief !== void 0 ? { outputHungerRelief: this.options.outputHungerRelief } : {},
+            ...this.options.outputStomachVolume !== void 0 ? { outputStomachVolume: this.options.outputStomachVolume } : {},
+            durationMinutes: this.options.durationMinutes,
+            finishBy: time + remainingWorkMinutes
+          }
+        },
+        priority: this.options.priority ?? 55
+      }];
+    }
+  };
+  function isActive5(minuteOfDay, start2, end) {
+    if (start2 === end) return true;
+    if (start2 < end) return minuteOfDay >= start2 && minuteOfDay < end;
+    return minuteOfDay >= start2 || minuteOfDay < end;
+  }
+  function minutesUntilEnd3(minuteOfDay, start2, end) {
+    if (!isActive5(minuteOfDay, start2, end)) return 0;
+    if (start2 === end) return MINUTES_PER_DAY21;
+    if (start2 < end) return end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY21 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/activities/WorkplaceProductionActivity.ts
-  var MINUTES_PER_DAY21 = 24 * 60;
+  var MINUTES_PER_DAY22 = 24 * 60;
   var WorkplaceProductionActivity = class {
     constructor(options) {
       this.options = options;
@@ -19163,9 +19194,9 @@
       this.name = options.name ?? "Produce Workplace Stock";
     }
     getIntents({ character, time }) {
-      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY21;
-      if (!isActive5(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
-      const remainingWorkMinutes = minutesUntilEnd3(
+      const minuteOfDay = (this.options.startMinuteOfDay + time) % MINUTES_PER_DAY22;
+      if (!isActive6(minuteOfDay, this.options.activeFrom, this.options.activeUntil)) return [];
+      const remainingWorkMinutes = minutesUntilEnd4(
         minuteOfDay,
         this.options.activeFrom,
         this.options.activeUntil
@@ -19213,16 +19244,16 @@
       }];
     }
   };
-  function isActive5(minuteOfDay, start2, end) {
+  function isActive6(minuteOfDay, start2, end) {
     if (start2 === end) return true;
     if (start2 < end) return minuteOfDay >= start2 && minuteOfDay < end;
     return minuteOfDay >= start2 || minuteOfDay < end;
   }
-  function minutesUntilEnd3(minuteOfDay, start2, end) {
-    if (!isActive5(minuteOfDay, start2, end)) return 0;
-    if (start2 === end) return MINUTES_PER_DAY21;
+  function minutesUntilEnd4(minuteOfDay, start2, end) {
+    if (!isActive6(minuteOfDay, start2, end)) return 0;
+    if (start2 === end) return MINUTES_PER_DAY22;
     if (start2 < end) return end - minuteOfDay;
-    return minuteOfDay >= start2 ? MINUTES_PER_DAY21 - minuteOfDay + end : end - minuteOfDay;
+    return minuteOfDay >= start2 ? MINUTES_PER_DAY22 - minuteOfDay + end : end - minuteOfDay;
   }
 
   // src/world/ButcherShop.ts
@@ -19361,6 +19392,7 @@
   var DEFAULT_BUTCHER_WATERSKIN_ID = "jack-waterskin";
   var DEFAULT_DRESSED_HOOKCREST_PRICE = 4;
   var DEFAULT_RAW_MEAT_PRICE = 3;
+  var DEFAULT_BUTCHER_FRESH_MEAT_RESERVE = 2;
   var DEFAULT_BUTCHER_SERVICE_HOURS = [
     { service: "food", windows: [{ startMinuteOfDay: 9 * 60, endMinuteOfDay: 17 * 60 }] },
     { service: "trade", windows: [{ startMinuteOfDay: 9 * 60, endMinuteOfDay: 17 * 60 }] }
@@ -19417,6 +19449,7 @@
     const frontDoorId = `${shop.id}-front-door`;
     const frontDoorInside = shop.physicalFootprint ? getDoorInsidePosition(shop.physicalFootprint, frontDoorId) : void 0;
     if (!frontDoorInside) throw new Error("Village butcher shop requires an inside-operable front door.");
+    const butcherWorkActionPointId = facilityActionPointId(butcherShopBlockId(shop.id));
     butcher.addActivity(new WaterPreparationActivity("jack-water-preparation"));
     butcher.addActivity(new SellFoodActivity());
     butcher.addActivity(new BuyOfferedGoodsActivity({
@@ -19434,7 +19467,7 @@
       id: "jack-butcher-hookcrests",
       name: "Butcher Dressed Hookcrests",
       recipeId: "butcher-dressed-hookcrest",
-      workActionPointId: facilityActionPointId(butcherShopBlockId(shop.id)),
+      workActionPointId: butcherWorkActionPointId,
       workPosition: { ...site.workPosition },
       outputContainerId: workStorageId,
       outputType: "food",
@@ -19450,6 +19483,26 @@
       durationMinutes: 20,
       activeFrom: 8 * 60,
       activeUntil: 17 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      priority: 60
+    }));
+    butcher.addActivity(new SurplusFoodPreservationActivity({
+      id: "jack-dry-surplus-meat",
+      name: "Dry Surplus Meat",
+      recipeId: "dry-surplus-meat",
+      workActionPointId: butcherWorkActionPointId,
+      workPosition: { ...site.workPosition },
+      storageContainerId: workStorageId,
+      inputItemType: "food",
+      inputFoodKind: "meat",
+      reserveInputStock: DEFAULT_BUTCHER_FRESH_MEAT_RESERVE,
+      outputType: "food",
+      outputFoodKind: "dried-meat",
+      outputHungerRelief: 35,
+      outputStomachVolume: 20,
+      durationMinutes: 10,
+      activeFrom: 17 * 60,
+      activeUntil: 20 * 60,
       startMinuteOfDay: world2.startMinuteOfDay,
       priority: 60
     }));
@@ -19620,6 +19673,344 @@
       learnedAt: world2.time,
       confidence: 1
     });
+  }
+
+  // src/scenarios/DefaultTavernProcurement.ts
+  var DEFAULT_TAVERN_VEGETABLE_TARGET_STOCK = 8;
+  var DEFAULT_TAVERN_MEAT_TARGET_STOCK = 4;
+  var DEFAULT_DAVE_VEGETABLE_PRICE = 3;
+  var DEFAULT_JACK_MEAT_PRICE = DEFAULT_RAW_MEAT_PRICE;
+  var DEFAULT_TAVERN_BASKET_ID = "emma-tavern-basket";
+  var DEFAULT_TAVERN_BUCKET_ID = "emma-tavern-bucket";
+  var DEFAULT_WORKPLACE_BASKET_CAPACITY = 12;
+  var DEFAULT_MEAT_STEW_DISH_ID = "meat-and-vegetable-stew";
+  var HOT_HELD_STEW_SHELF_LIFE_MINUTES2 = 18 * 60;
+  var DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY = 58;
+  function configureDefaultTavernIngredientProcurement(world2, layout, emma, dave) {
+    const kitchenId = tavernKitchenId("village-tavern");
+    const kitchenPosition = tavernKitchenWorkPosition(layout.tavern.position);
+    const tavernHearthActionPoint = facilityActionPointId(tavernKitchenHearthId("village-tavern"));
+    const cartCustomerPosition = {
+      x: (layout.daveCartPosition.x + layout.daveSellingPosition.x) / 2,
+      y: (layout.daveCartPosition.y + layout.daveSellingPosition.y) / 2
+    };
+    emma.physical.add({
+      id: DEFAULT_TAVERN_BASKET_ID,
+      type: "basket",
+      size: "medium",
+      physical: { carryHands: 1, useHands: 1 },
+      solidContainer: { capacity: DEFAULT_WORKPLACE_BASKET_CAPACITY }
+    }, { type: "container", containerId: kitchenId });
+    emma.physical.add({
+      id: DEFAULT_TAVERN_BUCKET_ID,
+      type: "bucket",
+      size: "medium",
+      physical: { carryHands: 1, useHands: 1 },
+      liquidContainer: { capacity: 4 }
+    }, { type: "container", containerId: kitchenId });
+    world2.ownership.setOwner(DEFAULT_TAVERN_BASKET_ID, emma.id);
+    world2.ownership.setOwner(DEFAULT_TAVERN_BUCKET_ID, emma.id);
+    emma.addActivity(new StagedWorkplaceProductionActivity({
+      id: "emma-meat-stew-production",
+      name: "Cook Meat And Vegetable Stew",
+      recipeId: DEFAULT_MEAT_STEW_DISH_ID,
+      workActionPointId: tavernHearthActionPoint,
+      workPosition: { ...kitchenPosition },
+      outputContainerId: kitchenId,
+      outputType: "food",
+      outputFoodKind: "prepared-meal",
+      outputDishId: DEFAULT_MEAT_STEW_DISH_ID,
+      outputHungerRelief: 110,
+      outputHydrationRelief: 20,
+      outputStomachVolume: 60,
+      outputShelfLifeMinutes: HOT_HELD_STEW_SHELF_LIFE_MINUTES2,
+      targetStock: 4,
+      outputCountPerBatch: 2,
+      inputItemType: "food",
+      inputFoodKind: "vegetable",
+      inputCountPerBatch: 1,
+      secondaryInputItemType: "food",
+      secondaryInputFoodKind: "meat",
+      secondaryInputCountPerBatch: 1,
+      liquidRoomResourceId: "emma-tavern-water-barrel",
+      liquidType: "water",
+      liquidAmountPerBatch: 2,
+      stages: [
+        { id: "prepare-meat-stew", activeMinutes: 10, passiveMinutesAfter: 30 },
+        { id: "finish-meat-stew", activeMinutes: 5, passiveMinutesAfter: 0 }
+      ],
+      maxConcurrentBatches: 1,
+      activeFrom: 6 * 60,
+      activeUntil: 8 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      priority: 60,
+      waitingPriority: 60
+    }));
+    emma.addActivity(new WorkplaceProcurementActivity({
+      id: "emma-restock-stew-vegetables",
+      name: "Restock Stew Vegetables",
+      service: "food",
+      offering: "portable-food",
+      itemCategory: "vegetable",
+      targetStock: DEFAULT_TAVERN_VEGETABLE_TARGET_STOCK,
+      maxPurchaseQuantity: DEFAULT_WORKPLACE_BASKET_CAPACITY,
+      estimatedUnitStorageVolume: 1,
+      maxUnitPrice: DEFAULT_DAVE_VEGETABLE_PRICE,
+      storageContainerId: kitchenId,
+      storagePosition: { ...kitchenPosition },
+      priority: DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY
+    }));
+    emma.addActivity(new WorkplaceProcurementActivity({
+      id: "emma-restock-stew-meat",
+      name: "Restock Stew Meat",
+      service: "food",
+      offering: "portable-food",
+      itemCategory: "meat",
+      // Fresh meat is a cooking ingredient. Dried meat remains preserved food
+      // rather than silently satisfying this recipe reserve.
+      foodKind: "meat",
+      targetStock: DEFAULT_TAVERN_MEAT_TARGET_STOCK,
+      maxPurchaseQuantity: DEFAULT_WORKPLACE_BASKET_CAPACITY,
+      estimatedUnitStorageVolume: 1,
+      maxUnitPrice: DEFAULT_JACK_MEAT_PRICE,
+      storageContainerId: kitchenId,
+      storagePosition: { ...kitchenPosition },
+      priority: DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY
+    }));
+    emma.addActivity(new WorkplaceLiquidReserveActivity({
+      id: "emma-tavern-water-reserve",
+      name: "Fill Tavern Kitchen Water Reserve",
+      reserveId: "emma-tavern-water-barrel",
+      roomId: tavernRoomIds("village-tavern").common,
+      roomPosition: { ...kitchenPosition },
+      bucketItemId: DEFAULT_TAVERN_BUCKET_ID,
+      sourceId: "village-fountain",
+      liquidType: "water",
+      targetAmount: 24,
+      // Refill after the morning cooking window rather than competing with it.
+      activeFrom: 8 * 60,
+      activeUntil: 17 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      priority: DEFAULT_TAVERN_WORKPLACE_CHORE_PRIORITY
+    }));
+    emma.knownPeople.add(dave.id);
+    emma.addKnowledge({
+      type: "service-provider",
+      subjectId: dave.id,
+      polarity: "positive",
+      context: {
+        service: "food",
+        placeId: "dave-cart",
+        offering: "portable-food",
+        itemCategory: "vegetable",
+        terms: {
+          price: DEFAULT_DAVE_VEGETABLE_PRICE,
+          expectedDuration: 5
+        }
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    emma.addKnowledge({
+      type: "service-place",
+      subjectId: "dave-cart",
+      polarity: "positive",
+      position: cartCustomerPosition,
+      context: { service: "food" },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    emma.addKnowledge({
+      type: "service-hours",
+      subjectId: "dave-cart",
+      polarity: "positive",
+      context: {
+        service: "food",
+        hours: [{ startMinuteOfDay: 9 * 60, endMinuteOfDay: 17 * 60 }]
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    emma.knownPeople.add(DEFAULT_BUTCHER_ID);
+    emma.addKnowledge({
+      type: "service-provider",
+      subjectId: DEFAULT_BUTCHER_ID,
+      polarity: "positive",
+      context: {
+        service: "food",
+        placeId: DEFAULT_BUTCHER_SHOP_ID,
+        offering: "portable-food",
+        itemType: "food",
+        itemCategory: "meat",
+        foodKind: "meat",
+        terms: {
+          price: DEFAULT_JACK_MEAT_PRICE,
+          expectedDuration: 5
+        }
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    emma.addKnowledge({
+      type: "service-place",
+      subjectId: DEFAULT_BUTCHER_SHOP_ID,
+      polarity: "positive",
+      position: { ...layout.butcherSite.shopCustomerPosition },
+      context: { service: "food" },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    emma.addKnowledge({
+      type: "service-hours",
+      subjectId: DEFAULT_BUTCHER_SHOP_ID,
+      polarity: "positive",
+      context: {
+        service: "food",
+        hours: DEFAULT_BUTCHER_SERVICE_HOURS.find((entry) => entry.service === "food").windows.map((window) => ({ ...window }))
+      },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+    emma.addKnowledge({
+      type: "water-source",
+      subjectId: "village-fountain",
+      polarity: "positive",
+      position: { ...layout.fountainPosition },
+      sourceType: "world-initiation",
+      learnedAt: world2.time,
+      confidence: 1
+    });
+  }
+
+  // src/scenarios/DefaultHunter.ts
+  var DEFAULT_HUNTER_ID = "isaac";
+  var DEFAULT_HUNTER_HOME_ID = "isaac-home";
+  var DEFAULT_HUNTING_ACTIVITY_ID = "isaac-hookcrest-hunting";
+  var DEFAULT_HUNTING_BOW_ID = "isaac-hunting-bow";
+  var DEFAULT_BUTCHERING_TABLE_ID = "isaac-butchering-table";
+  var DEFAULT_GAME_LARDER_ID = "isaac-game-larder";
+  var DEFAULT_GAME_CARRIER_ID = "isaac-game-strap";
+  var DEFAULT_GAME_CARRIER_SLOTS = ["game-strap-1", "game-strap-2"];
+  function createDefaultHunter(world2, layout) {
+    const homeSite = layout.homes.isaac;
+    const hunter = new Character(DEFAULT_HUNTER_ID, "Isaac", { ...homeSite.position }, createPersonality({
+      frugality: 0.6,
+      caution: 0.7,
+      patience: 0.75,
+      conscientiousness: 0.75,
+      sociability: 0.35,
+      helpfulness: 0.6,
+      curiosity: 0.65,
+      assertiveness: 0.55,
+      integrity: 0.8,
+      emotionalStability: 0.8
+    }));
+    hunter.homeId = DEFAULT_HUNTER_HOME_ID;
+    hunter.hunger = 0;
+    hunter.thirst = 0;
+    hunter.tiredness = 25;
+    hunter.money = 10;
+    const baseHome = createHouse({
+      id: DEFAULT_HUNTER_HOME_ID,
+      ownerId: hunter.id,
+      position: { ...homeSite.position },
+      frontDoorSide: homeSite.frontDoorSide
+    });
+    const preparationPosition = { x: homeSite.position.x + 1, y: homeSite.position.y - 1 };
+    const facility = createFacility({
+      id: DEFAULT_BUTCHERING_TABLE_ID,
+      type: "butchering-table",
+      placeId: DEFAULT_HUNTER_HOME_ID,
+      position: { ...preparationPosition }
+    });
+    const butcheringTable = {
+      ...facility,
+      ownerId: hunter.id,
+      containerId: DEFAULT_GAME_LARDER_ID
+    };
+    const home = {
+      ...baseHome,
+      fixtures: [...baseHome.fixtures ?? [], butcheringTable]
+    };
+    const frontDoorId = `${home.id}-front-door`;
+    const insidePosition = home.physicalFootprint ? getDoorInsidePosition(home.physicalFootprint, frontDoorId) : void 0;
+    if (!insidePosition) throw new Error("Isaac's home requires an inside-operable front door.");
+    hunter.addActivity(new DoorScheduleActivity({
+      id: "isaac-home-front-door-hours",
+      doorId: frontDoorId,
+      placeId: home.id,
+      insidePosition,
+      opensAt: 6 * 60,
+      closesAt: 22 * 60,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      initialState: "open"
+    }));
+    hunter.physical.add({
+      id: DEFAULT_HUNTING_BOW_ID,
+      type: "hunting-bow",
+      size: "medium",
+      physical: { carryHands: 1, useHands: 2 }
+    }, { type: "equipped", slot: "bow-sling" });
+    hunter.physical.add({
+      id: DEFAULT_GAME_CARRIER_ID,
+      type: "game-strap",
+      size: "small",
+      physical: { carryHands: 1, useHands: 1 }
+    }, { type: "equipped", slot: "game-strap" });
+    hunter.physical.add({
+      id: "isaac-waterskin",
+      type: "water-container",
+      size: "small",
+      physical: { carryHands: 1, useHands: 1 },
+      liquidContainer: { capacity: 1, contents: { type: "water", amount: 1 } }
+    }, { type: "equipped", slot: "waterskin" });
+    hunter.addActivity(new WaterPreparationActivity("isaac-water-preparation"));
+    for (const habitat of layout.hookcrestHabitats) {
+      world2.hunting.registerHabitat({
+        id: habitat.id,
+        speciesId: "hookcrest",
+        position: { ...habitat.position },
+        capacity: 1,
+        successChance: 0.65,
+        recoveryMinutes: 8 * 60,
+        disturbanceMinutes: 45
+      });
+    }
+    hunter.addActivity(new HookcrestHuntingActivity({
+      id: DEFAULT_HUNTING_ACTIVITY_ID,
+      bowItemId: DEFAULT_HUNTING_BOW_ID,
+      gameCarrierSlots: DEFAULT_GAME_CARRIER_SLOTS,
+      habitats: layout.hookcrestHabitats.map((habitat) => ({
+        id: habitat.id,
+        speciesId: "hookcrest",
+        position: { ...habitat.position }
+      })),
+      homeSubjectId: home.id,
+      homePosition: { ...home.position },
+      preparationFacilityId: butcheringTable.id,
+      preparationActionPointId: facilityActionPointId(butcheringTable.id),
+      preparationPosition: { ...preparationPosition },
+      outputContainerId: DEFAULT_GAME_LARDER_ID,
+      meatYield: 3,
+      targetMeatStock: 3,
+      startMinuteOfDay: world2.startMinuteOfDay,
+      activeFrom: 8 * 60,
+      activeUntil: 17 * 60,
+      priority: 46
+    }));
+    world2.addObject(home);
+    return {
+      hunter,
+      home,
+      butcheringTable,
+      habitatIds: layout.hookcrestHabitats.map((habitat) => habitat.id)
+    };
   }
 
   // src/scenarios/DefaultVillageScenario.ts
@@ -19833,7 +20224,7 @@
   var SIMULATION_VIEW_SCHEMA_VERSION = 1;
 
   // src/view/SimulationViewAdapter.ts
-  var MINUTES_PER_DAY22 = 24 * 60;
+  var MINUTES_PER_DAY23 = 24 * 60;
   var SimulationViewAdapter = class {
     frame(world2) {
       return {
@@ -19852,8 +20243,8 @@
     }
     time(world2) {
       const absoluteMinute = world2.startMinuteOfDay + world2.time;
-      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY22) + 1;
-      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY22;
+      const day = Math.floor(absoluteMinute / MINUTES_PER_DAY23) + 1;
+      const minuteOfDay = absoluteMinute % MINUTES_PER_DAY23;
       return {
         day,
         hour: Math.floor(minuteOfDay / 60),
