@@ -106,7 +106,13 @@
             const raw = rawRun("exterior", side, runOrigin, width, doors(side));
             const grouped = side === rear || side === near ? groupHorizontalRun(raw) : classifyRun(raw);
             const face = side === rear ? "rear" : "front";
-            return grouped.map(segment => ({ ...segment, face }));
+            return grouped.map((segment, index) => ({
+                ...segment,
+                face,
+                ...(face === "front" && segment.role === "wall-bay-2"
+                    ? { variant: index % 2 === 0 ? "window" : "plain" }
+                    : {})
+            }));
         };
         const sideRun = (side, runOrigin) => {
             const run = classifyRun(rawRun("exterior", side, runOrigin, height, doors(side)));
@@ -151,7 +157,9 @@
         if (segment.role === "wall-bay-2") {
             suffix = segment.layer === "interior"
                 ? "wall.horizontal2.plain"
-                : segment.face === "front" ? "front.wall2.stone" : "back.wall2.plain";
+                : segment.face === "front"
+                    ? "front.wall2." + (segment.variant ?? "plain")
+                    : "back.wall2.plain";
         } else if (segment.role === "wall-filler-1") {
             suffix = segment.layer === "interior"
                 ? "wall.horizontal1." + segment.variant

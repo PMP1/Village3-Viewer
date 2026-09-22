@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128" shape-rendering="crispEdges">
+  <defs>
+    <g id="stone-frame">
+      <rect width="64" height="128" fill="#29242a"/>
+      <rect x="12" y="22" width="40" height="100" fill="#17151a"/>
+      <g stroke="#29242a" stroke-width="2">
+        <path fill="#777782" d="M2 24h11v25H2z"/><path fill="#9997a1" d="M2 49h11v25H2z"/>
+        <path fill="#6b6a75" d="M2 74h11v25H2z"/><path fill="#8c8a96" d="M2 99h11v27H2z"/>
+        <path fill="#8b8994" d="M51 24h11v25H51z"/><path fill="#6e6d78" d="M51 49h11v25H51z"/>
+        <path fill="#9997a1" d="M51 74h11v25H51z"/><path fill="#73727d" d="M51 99h11v27H51z"/>
+        <path fill="#85838f" d="M2 2h20v20H2z"/><path fill="#9b99a4" d="M22 2h20v20H22z"/><path fill="#73727e" d="M42 2h20v20H42z"/>
+        <path fill="#8f8d98" d="M12 18h14v12H12z"/><path fill="#aaa7b0" d="M26 14h12v12H26z"/><path fill="#7d7b87" d="M38 18h14v12H38z"/>
+      </g>
+      <path fill="#c1bdc4" d="M4 4h14v4H4zm20 0h14v4H24zm20 0h14v4H44zM4 26h7v4H4zm49 0h7v4h-7z"/>
+      <path fill="#4c4b56" d="M4 18h16v3H4zm21 0h14v3H25zm20 0h15v3H45zM4 43h7v4H4zm49 24h7v4h-7z"/>
+      <rect x="9" y="122" width="46" height="6" fill="#4e4b51"/>
+      <rect x="13" y="120" width="38" height="5" fill="#96918f"/>
+    </g>
+    <g id="door-leaf">
+      <rect x="14" y="26" width="36" height="96" fill="#48291c"/>
+      <rect x="17" y="28" width="9" height="92" fill="#9c5b2d"/>
+      <rect x="27" y="28" width="9" height="92" fill="#b06b35"/>
+      <rect x="37" y="28" width="10" height="92" fill="#875027"/>
+      <path fill="#d08a45" d="M19 31h5v84h-3V47h-2zm10 0h5v84h-3V47h-2zm10 0h6v84h-3V48h-3z"/>
+      <path fill="#27252a" d="M15 42h31v5H15zm0 60h31v5H15z"/>
+      <path fill="#514b4a" d="M17 43h25v2H17zm0 61h25v2H17z"/>
+      <rect x="39" y="70" width="6" height="6" fill="#242329"/><rect x="40" y="71" width="3" height="3" fill="#d5a44e"/>
+    </g>
+  </defs>
+
+  <!-- bare doorway -->
+  <g><use href="#stone-frame"/><path fill="#3a3030" d="M16 30h32v88H16z"/><path fill="#211c20" d="M19 34h29v84H19z"/></g>
+
+  <!-- open door -->
+  <g transform="translate(64)"><use href="#stone-frame"/><path fill="#3a3030" d="M16 30h32v88H16z"/><path fill="#181519" d="M20 34h28v84H20z"/><path fill="#81502b" d="M39 31h10v88H39z"/><path fill="#c47a3d" d="M40 34h4v82H40z"/><path fill="#27252a" d="M38 43h11v5H38zm0 57h11v5H38z"/></g>
+
+  <!-- closed door -->
+  <g transform="translate(128)"><use href="#stone-frame"/><use href="#door-leaf"/></g>
+
+  <!-- locked door -->
+  <g transform="translate(192)"><use href="#stone-frame"/><use href="#door-leaf"/><path fill="#25242a" d="M12 78h40v7H12z"/><path fill="#5d5960" d="M15 79h34v3H15z"/><path fill="#27252a" d="M28 73h10v15H28z"/><path fill="#c69a48" d="M30 72h6v10h-2v-6h-2v6h-2z"/></g>
+</svg>

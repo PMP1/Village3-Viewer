@@ -1,12 +1,14 @@
-// Fixed source rectangles and pixel anchors; 32 art pixels remain one world metre.
+// Fixed source rectangles and pixel anchors; 32 rendered pixels remain one world metre.
 // LPC's 64x64 character frame is visual space only. Doors remain one 32px metre.
-// Doors still use the legacy SVG atlas. Wall geometry uses editable image templates.
+// Front art uses 2x source density and is downsampled into the same world geometry.
 const BUILDING_ATLAS_PATH = "./assets/village-building-walls.svg";
 const BUILDING_WALL_PNG_DIRECTORY = "./assets/building-walls-png/";
 const BUILDING_INTERNAL_WALL_DIRECTORY = "./assets/building-walls-internal/";
 const EXTERIOR_BACK_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_back_2m.png";
-const EXTERIOR_FRONT_STONE_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_stone_2m.png";
-const EXTERIOR_FRONT_STONE_DOOR_PATH = "./assets/building-walls-front-stone.svg";
+const EXTERIOR_FRONT_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_2m.png";
+const EXTERIOR_FRONT_WINDOW_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_window_2m.png";
+const EXTERIOR_FRONT_DOOR_PATH = "./assets/building-walls-front.svg";
+const EXTERIOR_FRONT_PIER_PATH = "./assets/building-walls-front-pier.svg";
 const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.closed.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":0},
     "building.exterior.door.closed.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":64},
@@ -48,13 +50,14 @@ const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"
 const PNG_EXTERIOR_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":48,"sourceX":8,"sourceY":0});
 const PNG_EXTERIOR_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":16,"sourceY":0});
 const PNG_EXTERIOR_BACK_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":64,"sourceWidth":8,"sourceX":0,"sourceY":0});
-const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":48,"sourceX":8,"sourceY":0});
-const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":16,"sourceY":0});
-const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":64,"sourceWidth":8,"sourceX":0,"sourceY":0});
-const FRONT_STONE_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const FRONT_STONE_DOOR_OPEN = Object.freeze({...FRONT_STONE_DOORWAY,"sourceX":32});
-const FRONT_STONE_DOOR_CLOSED = Object.freeze({...FRONT_STONE_DOORWAY,"sourceX":64});
-const FRONT_STONE_DOOR_LOCKED = Object.freeze({...FRONT_STONE_DOORWAY,"sourceX":96});
+const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":128,"sourceWidth":96,"sourceX":16,"sourceY":0});
+const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":32,"sourceY":0});
+const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":128,"sourceWidth":16,"sourceX":0,"sourceY":0});
+const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":128,"sourceWidth":24,"sourceX":0,"sourceY":0});
+const FRONT_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"sourceX":64});
+const FRONT_DOOR_CLOSED = Object.freeze({...FRONT_DOORWAY,"sourceX":128});
+const FRONT_DOOR_LOCKED = Object.freeze({...FRONT_DOORWAY,"sourceX":192});
 const PNG_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const PNG_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
 // Side walls remain one-metre logical sections. Their 96 px canvas carries the
@@ -66,13 +69,14 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.back.wall2.plain": PNG_EXTERIOR_BACK_WALL_2,
     "building.exterior.back.wall1.left": PNG_EXTERIOR_BACK_WALL_1,
     "building.exterior.back.wall1.right": PNG_EXTERIOR_BACK_WALL_1,
-    "building.exterior.front.wall2.stone": PNG_EXTERIOR_FRONT_WALL_2,
+    "building.exterior.front.wall2.plain": PNG_EXTERIOR_FRONT_WALL_2,
+    "building.exterior.front.wall2.window": PNG_EXTERIOR_FRONT_WALL_2,
     "building.exterior.front.wall1.left": PNG_EXTERIOR_FRONT_WALL_1,
     "building.exterior.front.wall1.right": PNG_EXTERIOR_FRONT_WALL_1,
-    "building.exterior.front.doorway.horizontal": FRONT_STONE_DOORWAY,
-    "building.exterior.front.door.open.horizontal": FRONT_STONE_DOOR_OPEN,
-    "building.exterior.front.door.closed.horizontal": FRONT_STONE_DOOR_CLOSED,
-    "building.exterior.front.door.locked.horizontal": FRONT_STONE_DOOR_LOCKED,
+    "building.exterior.front.doorway.horizontal": FRONT_DOORWAY,
+    "building.exterior.front.door.open.horizontal": FRONT_DOOR_OPEN,
+    "building.exterior.front.door.closed.horizontal": FRONT_DOOR_CLOSED,
+    "building.exterior.front.door.locked.horizontal": FRONT_DOOR_LOCKED,
     "building.exterior.wall.horizontal": PNG_HORIZONTAL,
     "building.exterior.wall.vertical.west": PNG_VERTICAL_WEST,
     "building.exterior.wall.vertical.east": PNG_VERTICAL_EAST,
@@ -92,13 +96,14 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.exterior.back.wall2.plain": EXTERIOR_BACK_WALL_PATH,
     "building.exterior.back.wall1.left": EXTERIOR_BACK_WALL_PATH,
     "building.exterior.back.wall1.right": EXTERIOR_BACK_WALL_PATH,
-    "building.exterior.front.wall2.stone": EXTERIOR_FRONT_STONE_WALL_PATH,
-    "building.exterior.front.wall1.left": EXTERIOR_FRONT_STONE_WALL_PATH,
-    "building.exterior.front.wall1.right": EXTERIOR_FRONT_STONE_WALL_PATH,
-    "building.exterior.front.doorway.horizontal": EXTERIOR_FRONT_STONE_DOOR_PATH,
-    "building.exterior.front.door.open.horizontal": EXTERIOR_FRONT_STONE_DOOR_PATH,
-    "building.exterior.front.door.closed.horizontal": EXTERIOR_FRONT_STONE_DOOR_PATH,
-    "building.exterior.front.door.locked.horizontal": EXTERIOR_FRONT_STONE_DOOR_PATH,
+    "building.exterior.front.wall2.plain": EXTERIOR_FRONT_WALL_PATH,
+    "building.exterior.front.wall2.window": EXTERIOR_FRONT_WINDOW_WALL_PATH,
+    "building.exterior.front.wall1.left": EXTERIOR_FRONT_WALL_PATH,
+    "building.exterior.front.wall1.right": EXTERIOR_FRONT_WALL_PATH,
+    "building.exterior.front.doorway.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.front.door.open.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.front.door.closed.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.front.door.locked.horizontal": EXTERIOR_FRONT_DOOR_PATH,
     "building.exterior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
     "building.exterior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
@@ -179,10 +184,16 @@ function sharedHorizontalPostSegments(segments, face, role) {
             // Doorway sprites own their jambs. Building ends and solid-solid
             // module boundaries receive exactly one shared post or stone pier.
             if (!before || exteriorHorizontalPanel(before, face)) {
-                posts.push({ ...segment, x: segment.x, length: 0, role });
+                posts.push({
+                    ...segment, x: segment.x, length: 0, role,
+                    ...(face === "front" ? { postKind: before ? "timber" : "corner" } : {})
+                });
             }
             if (!after) {
-                posts.push({ ...segment, x: segment.x + (segment.length ?? 1), length: 0, role });
+                posts.push({
+                    ...segment, x: segment.x + (segment.length ?? 1), length: 0, role,
+                    ...(face === "front" ? { postKind: "corner" } : {})
+                });
             }
         }
     }
@@ -206,13 +217,16 @@ function drawBuildingSegments(segments, project) {
         const frontPost = segment.role === "shared-front-post";
         const sharedPost = rearPost || frontPost;
         const id = sharedPost ? undefined : window.VillageBuildingWalls.spriteId(segment, project);
+        const frontCorner = frontPost && segment.postKind === "corner";
         const sprite = rearPost
             ? PNG_EXTERIOR_BACK_POST
-            : frontPost ? PNG_EXTERIOR_FRONT_POST : BUILDING_RESOLVED_SPRITES[id];
+            : frontCorner ? PNG_EXTERIOR_FRONT_CORNER_PIER
+                : frontPost ? PNG_EXTERIOR_FRONT_POST : BUILDING_RESOLVED_SPRITES[id];
         if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
         const path = rearPost
             ? EXTERIOR_BACK_WALL_PATH
-            : frontPost ? EXTERIOR_FRONT_STONE_WALL_PATH : BUILDING_PNG_PATHS[id];
+            : frontCorner ? EXTERIOR_FRONT_PIER_PATH
+                : frontPost ? EXTERIOR_FRONT_WALL_PATH : BUILDING_PNG_PATHS[id];
         const image = path ? buildingPngImages[path] : buildingAtlasImage;
         const rect = buildingSpriteRect(segment, sprite, project);
         context.drawImage(image,
@@ -227,8 +241,10 @@ window.VillageBuildingAtlas = Object.freeze({
     sprites: BUILDING_RESOLVED_SPRITES,
     rearPostSource: EXTERIOR_BACK_WALL_PATH,
     rearPostSprite: PNG_EXTERIOR_BACK_POST,
-    frontPostSource: EXTERIOR_FRONT_STONE_WALL_PATH,
+    frontPostSource: EXTERIOR_FRONT_WALL_PATH,
     frontPostSprite: PNG_EXTERIOR_FRONT_POST,
+    frontCornerPierSource: EXTERIOR_FRONT_PIER_PATH,
+    frontCornerPierSprite: PNG_EXTERIOR_FRONT_CORNER_PIER,
     sharedRearPostSegments,
     sharedFrontPostSegments,
     spriteRect: buildingSpriteRect,
