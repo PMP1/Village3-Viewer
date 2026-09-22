@@ -362,7 +362,7 @@
     function initialiseCompactGameUi() {
         if (!document.body || !canvas || document.querySelector(".game-person-mini")) return;
 
-        const ZOOM_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 5];
+        const ZOOM_LEVEL_MULTIPLIERS = [1, 1.5, 2, 3, 4, 5, 8, 12, 20];
         const DEFAULT_GAME_ZOOM_MULTIPLIER = 2;
         const viewportMeta = document.querySelector('meta[name="viewport"]');
         const defaultViewportContent = viewportMeta?.getAttribute("content") ?? "width=device-width, initial-scale=1";
