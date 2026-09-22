@@ -479,7 +479,7 @@
       position: { x: 103, y: 81 },
       frontDoorSide: "south",
       barProviderPosition: { x: 103, y: 84 },
-      barCustomerPosition: { x: 103, y: 85 },
+      barCustomerPosition: { x: 102, y: 84 },
       seatPositions: [
         { x: 101, y: 82 },
         { x: 105, y: 82 },
@@ -6171,6 +6171,18 @@
   function applyRectangularFootprint(grid, footprint) {
     validateFootprint(footprint);
     const { origin, width, height } = footprint;
+    const southDoorOffsets = new Set(
+      (footprint.doors ?? []).filter((door) => door.side === "south").map((door) => door.offset)
+    );
+    for (let x = 0; x < width; x++) {
+      if (southDoorOffsets.has(x)) continue;
+      const coveredCell = { x: origin.x + x, y: origin.y + height - 1 };
+      grid.setChannelBarrier(
+        grid.neighbour(coveredCell, "north"),
+        coveredCell,
+        ["movement", "vision", "interaction"]
+      );
+    }
     for (let x = 0; x < width; x++) {
       grid.setWall({ x: origin.x + x, y: origin.y }, "north");
       grid.setWall({ x: origin.x + x, y: origin.y + height - 1 }, "south");

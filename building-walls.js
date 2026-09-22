@@ -61,10 +61,8 @@
     }
 
     // Convert a horizontal wall run into architectural modules. Input geometry
-    // remains one metre per segment and doors remain exactly one metre. Exterior
-    // usage is limited to the screen-rear wall; internal horizontal partitions
-    // use the same composition rule with their own artwork.
-    function groupRearRun(segments) {
+    // remains one metre per segment and doors remain exactly one metre.
+    function groupHorizontalRun(segments) {
         const grouped = [];
         let index = 0;
         while (index < segments.length) {
@@ -103,9 +101,12 @@
         const { origin, width, height } = footprint;
         const doors = side => (footprint.doors ?? []).filter(door => door.side === side);
         const rear = screenRearHorizontalSide(projectOverride);
+        const near = screenNearHorizontalSide(projectOverride);
         const horizontalRun = (side, runOrigin) => {
             const raw = rawRun("exterior", side, runOrigin, width, doors(side));
-            return side === rear ? groupRearRun(raw) : classifyRun(raw);
+            const grouped = side === rear || side === near ? groupHorizontalRun(raw) : classifyRun(raw);
+            const face = side === rear ? "rear" : "front";
+            return grouped.map(segment => ({ ...segment, face }));
         };
         const sideRun = (side, runOrigin) => {
             const run = classifyRun(rawRun("exterior", side, runOrigin, height, doors(side)));
@@ -132,7 +133,7 @@
                 },
                 partition.length, partition.doors
             );
-            return horizontal(partition.side) ? groupRearRun(raw) : classifyRun(raw);
+            return horizontal(partition.side) ? groupHorizontalRun(raw) : classifyRun(raw);
         });
     }
 
@@ -148,21 +149,27 @@
         let suffix;
         const sideWall = projectedSideWallSuffix(segment);
         if (segment.role === "wall-bay-2") {
-            suffix = segment.layer === "interior" ? "wall.horizontal2.plain" : "back.wall2.plain";
+            suffix = segment.layer === "interior"
+                ? "wall.horizontal2.plain"
+                : segment.face === "front" ? "front.wall2.stone" : "back.wall2.plain";
         } else if (segment.role === "wall-filler-1") {
             suffix = segment.layer === "interior"
                 ? "wall.horizontal1." + segment.variant
-                : "back.wall1." + segment.variant;
+                : segment.face === "front"
+                    ? "front.wall1." + segment.variant
+                    : "back.wall1." + segment.variant;
         } else if (sideWall) suffix = sideWall;
         else if (segment.role === "end") suffix = "wall.end." + segment.variant;
-        else if (segment.role === "doorway") suffix = "doorway." + segment.orientation;
-        else if (segment.role.startsWith("door-")) suffix = "door." + segment.role.slice(5) + "." + segment.orientation;
-        else suffix = "wall." + segment.orientation;
-        // The cutaway is a visual screen-front rule, not a simulation-cardinal rule.
-        const low = segment.layer === "exterior" &&
-            segment.side === screenNearHorizontalSide(projectOverride) &&
-            !segment.role.startsWith("door");
-        return prefix + suffix + (low ? ".cutaway" : "");
+        else if (segment.role === "doorway") {
+            suffix = segment.layer === "exterior" && segment.face === "front"
+                ? "front.doorway.horizontal"
+                : "doorway." + segment.orientation;
+        } else if (segment.role.startsWith("door-")) {
+            suffix = segment.layer === "exterior" && segment.face === "front"
+                ? "front.door." + segment.role.slice(5) + ".horizontal"
+                : "door." + segment.role.slice(5) + "." + segment.orientation;
+        } else suffix = "wall." + segment.orientation;
+        return prefix + suffix;
     }
 
     function painterOrder(segments, projectOverride) {
@@ -181,6 +188,6 @@
     }
 
     window.VillageBuildingWalls = Object.freeze({
-        extractExterior, extractInterior, classifyRun, groupRearRun, spriteId, painterOrder
+        extractExterior, extractInterior, classifyRun, groupHorizontalRun, spriteId, painterOrder
     });
 })();
