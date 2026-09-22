@@ -4,6 +4,7 @@
 const BUILDING_ATLAS_PATH = "./assets/village-building-walls.svg";
 const BUILDING_WALL_PNG_DIRECTORY = "./assets/building-walls-png/";
 const BUILDING_INTERNAL_WALL_DIRECTORY = "./assets/building-walls-internal/";
+const EXTERIOR_BACK_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_back_2m.png";
 const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.closed.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":0},
     "building.exterior.door.closed.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":64},
@@ -39,6 +40,12 @@ const BUILDING_SPRITES = Object.freeze({
 });
 
 const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
+// The exterior rear source tile is still the existing 64x64 artwork. The broad
+// timber posts are sliced away from the panel and painted once on each structural
+// boundary, so adjacent two-metre bays no longer produce post + post joins.
+const PNG_EXTERIOR_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":48,"sourceX":8,"sourceY":0});
+const PNG_EXTERIOR_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":16,"sourceY":0});
+const PNG_EXTERIOR_BACK_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":64,"sourceWidth":8,"sourceX":0,"sourceY":0});
 const PNG_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const PNG_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_CUTAWAY = Object.freeze({"anchorX":0,"anchorY":24,"drawHeight":24,"drawWidth":32,"sourceHeight":24,"sourceWidth":32,"sourceX":0,"sourceY":0});
@@ -48,9 +55,9 @@ const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":9
 const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
 const BUILDING_PNG_SPRITES = Object.freeze({
-    "building.exterior.back.wall2.plain": PNG_BACK_WALL_2,
-    "building.exterior.back.wall1.left": PNG_BACK_WALL_1,
-    "building.exterior.back.wall1.right": PNG_BACK_WALL_1,
+    "building.exterior.back.wall2.plain": PNG_EXTERIOR_BACK_WALL_2,
+    "building.exterior.back.wall1.left": PNG_EXTERIOR_BACK_WALL_1,
+    "building.exterior.back.wall1.right": PNG_EXTERIOR_BACK_WALL_1,
     "building.exterior.wall.horizontal": PNG_HORIZONTAL,
     "building.exterior.wall.horizontal.cutaway": PNG_CUTAWAY,
     "building.exterior.wall.vertical.west": PNG_VERTICAL_WEST,
@@ -70,9 +77,9 @@ const BUILDING_PNG_SPRITES = Object.freeze({
 });
 
 const BUILDING_PNG_PATHS = Object.freeze({
-    "building.exterior.back.wall2.plain": BUILDING_WALL_PNG_DIRECTORY + "wall_back_2m.png",
-    "building.exterior.back.wall1.left": BUILDING_WALL_PNG_DIRECTORY + "wall_back_1m_left.png",
-    "building.exterior.back.wall1.right": BUILDING_WALL_PNG_DIRECTORY + "wall_back_1m_right.png",
+    "building.exterior.back.wall2.plain": EXTERIOR_BACK_WALL_PATH,
+    "building.exterior.back.wall1.left": EXTERIOR_BACK_WALL_PATH,
+    "building.exterior.back.wall1.right": EXTERIOR_BACK_WALL_PATH,
     "building.exterior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.horizontal.cutaway": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal_cutaway.png",
     "building.exterior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
@@ -133,14 +140,46 @@ function buildingSpriteRect(segment, sprite, project) {
     };
 }
 
+function exteriorRearPanel(segment) {
+    return segment.layer === "exterior" && segment.orientation === "horizontal" &&
+        (segment.role === "wall-bay-2" || segment.role === "wall-filler-1");
+}
+
+function sharedRearPostSegments(segments) {
+    const posts = [];
+    const sides = [...new Set(segments.filter(exteriorRearPanel).map(segment => segment.side))];
+    for (const side of sides) {
+        const run = segments
+            .filter(segment => segment.layer === "exterior" && segment.orientation === "horizontal" && segment.side === side)
+            .sort((a, b) => a.x - b.x);
+        for (let index = 0; index < run.length; index++) {
+            const segment = run[index];
+            if (!exteriorRearPanel(segment)) continue;
+            const before = run[index - 1];
+            const after = run[index + 1];
+            // Doors already own their timber frame. Only the building ends and
+            // boundaries between two solid modules receive the shared post.
+            if (!before || exteriorRearPanel(before)) {
+                posts.push({ ...segment, x: segment.x, length: 0, role: "shared-rear-post" });
+            }
+            if (!after) {
+                posts.push({ ...segment, x: segment.x + (segment.length ?? 1), length: 0, role: "shared-rear-post" });
+            }
+        }
+    }
+    return posts;
+}
+
 function drawBuildingSegments(segments, project) {
     if (!buildingAtlasReady) return;
     context.imageSmoothingEnabled = false;
-    for (const segment of window.VillageBuildingWalls.painterOrder(segments, project)) {
-        const id = window.VillageBuildingWalls.spriteId(segment, project);
-        const sprite = BUILDING_RESOLVED_SPRITES[id];
+    const posts = sharedRearPostSegments(segments);
+    for (const segment of window.VillageBuildingWalls.painterOrder([...segments, ...posts], project)) {
+        const sharedPost = segment.role === "shared-rear-post";
+        const id = sharedPost ? undefined : window.VillageBuildingWalls.spriteId(segment, project);
+        const sprite = sharedPost ? PNG_EXTERIOR_BACK_POST : BUILDING_RESOLVED_SPRITES[id];
         if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
-        const path = BUILDING_PNG_PATHS[id];
+        const path = sharedPost ? EXTERIOR_BACK_WALL_PATH : BUILDING_PNG_PATHS[id];
         const image = path ? buildingPngImages[path] : buildingAtlasImage;
         const rect = buildingSpriteRect(segment, sprite, project);
         context.drawImage(image,
@@ -153,6 +192,9 @@ window.VillageBuildingAtlas = Object.freeze({
     source: BUILDING_ATLAS_PATH,
     imageSources: BUILDING_PNG_PATHS,
     sprites: BUILDING_RESOLVED_SPRITES,
+    rearPostSource: EXTERIOR_BACK_WALL_PATH,
+    rearPostSprite: PNG_EXTERIOR_BACK_POST,
+    sharedRearPostSegments,
     spriteRect: buildingSpriteRect,
     get ready() { return buildingAtlasReady; },
     get failed() { return buildingAtlasFailed; }
