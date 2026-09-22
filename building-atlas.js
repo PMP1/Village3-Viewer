@@ -50,9 +50,12 @@ const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"
 const PNG_EXTERIOR_BACK_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":64,"sourceWidth":48,"sourceX":8,"sourceY":0});
 const PNG_EXTERIOR_BACK_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":16,"sourceY":0});
 const PNG_EXTERIOR_BACK_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":64,"sourceWidth":8,"sourceX":0,"sourceY":0});
-const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":128,"sourceWidth":96,"sourceX":16,"sourceY":0});
-const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":32,"sourceY":0});
-const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":128,"sourceWidth":16,"sourceX":0,"sourceY":0});
+// The generated PNGs contain 114 rows of visible art followed by 14 transparent
+// rows. Sample only the visible height so the stone base lands on the physical
+// wall boundary instead of floating above the floor edge.
+const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":114,"sourceWidth":96,"sourceX":16,"sourceY":0});
+const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":114,"sourceWidth":64,"sourceX":32,"sourceY":0});
+const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":114,"sourceWidth":16,"sourceX":0,"sourceY":0});
 const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":128,"sourceWidth":24,"sourceX":0,"sourceY":0});
 const FRONT_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"sourceX":64});
@@ -122,7 +125,9 @@ const BUILDING_PNG_PATHS = Object.freeze({
 const BUILDING_RESOLVED_SPRITES = Object.freeze({ ...BUILDING_SPRITES, ...BUILDING_PNG_SPRITES });
 const buildingAtlasImage = new Image();
 const buildingPngImages = Object.create(null);
-const buildingPngPaths = [...new Set(Object.values(BUILDING_PNG_PATHS))];
+// Structural overlays are selected directly by the painter rather than by a
+// sprite id, so include them explicitly in the image loader as well.
+const buildingPngPaths = [...new Set([...Object.values(BUILDING_PNG_PATHS), EXTERIOR_FRONT_PIER_PATH])];
 let pendingBuildingImages = buildingPngPaths.length + 1;
 let buildingAtlasReady = false;
 let buildingAtlasFailed = false;
@@ -238,6 +243,7 @@ function drawBuildingSegments(segments, project) {
 window.VillageBuildingAtlas = Object.freeze({
     source: BUILDING_ATLAS_PATH,
     imageSources: BUILDING_PNG_PATHS,
+    loadedImageSources: buildingPngPaths,
     sprites: BUILDING_RESOLVED_SPRITES,
     rearPostSource: EXTERIOR_BACK_WALL_PATH,
     rearPostSprite: PNG_EXTERIOR_BACK_POST,

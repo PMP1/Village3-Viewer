@@ -16,9 +16,11 @@ into the same world area for more detail at close zoom.
 | `wall_horizontal_cutaway.png` | 32×24 | Retired front cutaway reference; not loaded |
 | `wall-bay-composition-example.png` | 672×480 | Historical enlarged composition reference |
 
-For front 2 m sources, the renderer samples the central 96 source pixels as a
-post-free 64-rendered-pixel infill. It samples a 16-source-pixel timber edge at
-solid-solid joins. Separate 24×128 stone piers cap the building ends, so adjacent
+For front 2 m sources, the renderer samples the central 96 source pixels and the
+114 rows of visible artwork as a post-free 64-rendered-pixel infill. The final
+14 transparent canvas rows are excluded so the visible stone base aligns with
+the floor boundary. It samples a 16-source-pixel timber edge at solid-solid
+joins. Separately loaded 24×128 stone piers cap the building ends, so adjacent
 bays never draw doubled edges. Rear art retains its original 32 px/metre source.
 
 Front door and doorway states live in
