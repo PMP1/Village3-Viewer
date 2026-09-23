@@ -7,8 +7,9 @@ const BUILDING_INTERNAL_WALL_DIRECTORY = "./assets/building-walls-internal/";
 const EXTERIOR_BACK_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_back_2m.png";
 const EXTERIOR_FRONT_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_2m.png";
 const EXTERIOR_FRONT_WINDOW_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_window_2m.png";
+const EXTERIOR_FRONT_TIMBER_POST_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_join_timber.png";
+const EXTERIOR_FRONT_STONE_CORNER_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_corner_stone.png";
 const EXTERIOR_FRONT_DOOR_PATH = "./assets/building-walls-front.svg";
-const EXTERIOR_FRONT_PIER_PATH = "./assets/building-walls-front-pier.svg";
 const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.closed.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":0},
     "building.exterior.door.closed.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":64},
@@ -56,7 +57,7 @@ const PNG_EXTERIOR_BACK_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeig
 const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":114,"sourceWidth":96,"sourceX":16,"sourceY":0});
 const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":114,"sourceWidth":64,"sourceX":32,"sourceY":0});
 const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":114,"sourceWidth":16,"sourceX":0,"sourceY":0});
-const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":128,"sourceWidth":24,"sourceX":0,"sourceY":0});
+const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":114,"sourceWidth":24,"sourceX":0,"sourceY":0});
 const FRONT_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"sourceX":64});
 const FRONT_DOOR_CLOSED = Object.freeze({...FRONT_DOORWAY,"sourceX":128});
@@ -127,7 +128,11 @@ const buildingAtlasImage = new Image();
 const buildingPngImages = Object.create(null);
 // Structural overlays are selected directly by the painter rather than by a
 // sprite id, so include them explicitly in the image loader as well.
-const buildingPngPaths = [...new Set([...Object.values(BUILDING_PNG_PATHS), EXTERIOR_FRONT_PIER_PATH])];
+const buildingPngPaths = [...new Set([
+    ...Object.values(BUILDING_PNG_PATHS),
+    EXTERIOR_FRONT_TIMBER_POST_PATH,
+    EXTERIOR_FRONT_STONE_CORNER_PATH
+])];
 let pendingBuildingImages = buildingPngPaths.length + 1;
 let buildingAtlasReady = false;
 let buildingAtlasFailed = false;
@@ -230,8 +235,8 @@ function drawBuildingSegments(segments, project) {
         if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
         const path = rearPost
             ? EXTERIOR_BACK_WALL_PATH
-            : frontCorner ? EXTERIOR_FRONT_PIER_PATH
-                : frontPost ? EXTERIOR_FRONT_WALL_PATH : BUILDING_PNG_PATHS[id];
+            : frontCorner ? EXTERIOR_FRONT_STONE_CORNER_PATH
+                : frontPost ? EXTERIOR_FRONT_TIMBER_POST_PATH : BUILDING_PNG_PATHS[id];
         const image = path ? buildingPngImages[path] : buildingAtlasImage;
         const rect = buildingSpriteRect(segment, sprite, project);
         context.drawImage(image,
@@ -247,9 +252,9 @@ window.VillageBuildingAtlas = Object.freeze({
     sprites: BUILDING_RESOLVED_SPRITES,
     rearPostSource: EXTERIOR_BACK_WALL_PATH,
     rearPostSprite: PNG_EXTERIOR_BACK_POST,
-    frontPostSource: EXTERIOR_FRONT_WALL_PATH,
+    frontPostSource: EXTERIOR_FRONT_TIMBER_POST_PATH,
     frontPostSprite: PNG_EXTERIOR_FRONT_POST,
-    frontCornerPierSource: EXTERIOR_FRONT_PIER_PATH,
+    frontCornerPierSource: EXTERIOR_FRONT_STONE_CORNER_PATH,
     frontCornerPierSprite: PNG_EXTERIOR_FRONT_CORNER_PIER,
     sharedRearPostSegments,
     sharedFrontPostSegments,
