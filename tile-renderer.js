@@ -402,7 +402,9 @@ function raisedRenderItems(visibleItems, project) {
     const raised = [];
     for (const item of visibleItems) {
         if (item.entity.subtype === "building" && rectangularFootprint(item.entity)) {
-            for (const segment of buildingWallSegments(item.entity, project)) {
+            const walls = buildingWallSegments(item.entity, project);
+            const segments = window.VillageBuildingAtlas?.renderSegments?.(walls) ?? walls;
+            for (const segment of segments) {
                 raised.push({ kind: "wall", segment, depth: wallSegmentDepth(segment, project) });
             }
         } else if (isRaisedDepthEntity(item.entity)) {
@@ -454,7 +456,7 @@ const renderMapBeforeTileRenderer = typeof renderMap === "function" ? renderMap 
 if (renderMapBeforeTileRenderer) {
     renderMap = function() {
         if (!recording || !context || !cameraInitialised) return;
-        if (typeof drawBuildingSegments !== "function" || !window.VillageBuildingWalls) {
+        if (typeof drawBuildingSegment !== "function" || !window.VillageBuildingWalls) {
             renderMapBeforeTileRenderer();
             return;
         }
@@ -493,7 +495,7 @@ if (renderMapBeforeTileRenderer) {
         try {
             for (const item of raisedItems) {
                 if (item.kind === "wall") {
-                    drawBuildingSegments([item.segment], project);
+                    drawBuildingSegment(item.segment, project);
                 } else {
                     drawEntity(item.entity, item.point, project);
                     raisedEntities.push(item.entity);

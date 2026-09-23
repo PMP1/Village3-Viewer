@@ -242,33 +242,43 @@ function sharedInteriorPostSegments(segments) {
     return sharedHorizontalPostSegments(segments, "interior", undefined, "shared-interior-post", false);
 }
 
-function drawBuildingSegments(segments, project) {
-    if (!buildingAtlasReady) return;
-    context.imageSmoothingEnabled = false;
-    const posts = [
+function buildingRenderSegments(segments) {
+    return [
+        ...segments,
         ...sharedRearPostSegments(segments),
         ...sharedFrontPostSegments(segments),
         ...sharedInteriorPostSegments(segments)
     ];
-    for (const segment of window.VillageBuildingWalls.painterOrder([...segments, ...posts], project)) {
-        const rearPost = segment.role === "shared-rear-post";
-        const frontPost = segment.role === "shared-front-post";
-        const interiorPost = segment.role === "shared-interior-post";
-        const sharedPost = rearPost || frontPost || interiorPost;
-        const id = sharedPost ? undefined : window.VillageBuildingWalls.spriteId(segment, project);
-        const stoneCorner = (rearPost || frontPost) && segment.postKind === "corner";
-        const sprite = stoneCorner
-            ? PNG_EXTERIOR_FRONT_CORNER_PIER
-            : sharedPost ? PNG_EXTERIOR_FRONT_POST : BUILDING_RESOLVED_SPRITES[id];
-        if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
-        const path = stoneCorner
-            ? EXTERIOR_FRONT_STONE_CORNER_PATH
-            : sharedPost ? EXTERIOR_FRONT_TIMBER_POST_PATH : BUILDING_PNG_PATHS[id];
-        const image = path ? buildingPngImages[path] : buildingAtlasImage;
-        const rect = buildingSpriteRect(segment, sprite, project);
-        context.drawImage(image,
-            sprite.sourceX, sprite.sourceY, sprite.sourceWidth, sprite.sourceHeight,
-            rect.x, rect.y, rect.width, rect.height);
+}
+
+function drawBuildingSegment(segment, project) {
+    if (!buildingAtlasReady) return;
+    context.imageSmoothingEnabled = false;
+    const rearPost = segment.role === "shared-rear-post";
+    const frontPost = segment.role === "shared-front-post";
+    const interiorPost = segment.role === "shared-interior-post";
+    const sharedPost = rearPost || frontPost || interiorPost;
+    const id = sharedPost ? undefined : window.VillageBuildingWalls.spriteId(segment, project);
+    const stoneCorner = (rearPost || frontPost) && segment.postKind === "corner";
+    const sprite = stoneCorner
+        ? PNG_EXTERIOR_FRONT_CORNER_PIER
+        : sharedPost ? PNG_EXTERIOR_FRONT_POST : BUILDING_RESOLVED_SPRITES[id];
+    if (!sprite) throw new Error("Missing building sprite for " + JSON.stringify(segment));
+    const path = stoneCorner
+        ? EXTERIOR_FRONT_STONE_CORNER_PATH
+        : sharedPost ? EXTERIOR_FRONT_TIMBER_POST_PATH : BUILDING_PNG_PATHS[id];
+    const image = path ? buildingPngImages[path] : buildingAtlasImage;
+    const rect = buildingSpriteRect(segment, sprite, project);
+    context.drawImage(image,
+        sprite.sourceX, sprite.sourceY, sprite.sourceWidth, sprite.sourceHeight,
+        rect.x, rect.y, rect.width, rect.height);
+}
+
+function drawBuildingSegments(segments, project) {
+    if (!buildingAtlasReady) return;
+    const composed = buildingRenderSegments(segments);
+    for (const segment of window.VillageBuildingWalls.painterOrder(composed, project)) {
+        drawBuildingSegment(segment, project);
     }
 }
 
@@ -286,6 +296,7 @@ window.VillageBuildingAtlas = Object.freeze({
     sharedRearPostSegments,
     sharedFrontPostSegments,
     sharedInteriorPostSegments,
+    renderSegments: buildingRenderSegments,
     spriteRect: buildingSpriteRect,
     get ready() { return buildingAtlasReady; },
     get failed() { return buildingAtlasFailed; }
