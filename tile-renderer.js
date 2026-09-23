@@ -379,8 +379,13 @@ function wallSegmentDepth(segment, project) {
 
 function raisedItemPriority(item) {
     if (item.kind !== "wall") return 10;
+    const structuralPost = item.segment.role === "shared-rear-post" ||
+        item.segment.role === "shared-front-post" ||
+        item.segment.role === "shared-interior-post";
     // On an exact ground-depth tie, walls/doors should cover physical objects.
-    // Keep the existing wall tie behaviour too: vertical runs before horizontal joins.
+    // Complete the vertical and horizontal wall artwork before its structural
+    // posts are added as the final detail layer.
+    if (structuralPost) return 40;
     return item.segment.orientation === "horizontal" ? 30 : 20;
 }
 
