@@ -1,4 +1,7 @@
 const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
+const PATH_DIRT_ALT_TILE_ID = "terrain.dirt-alt";
+const PATH_SUBDIVISIONS = 16;
+const PATH_EDGE_VARIATION_METRES = 0.09;
 const FIELD_TILE_IDS = Object.freeze({
     bare: "agriculture.field.bare",
     ploughed: "agriculture.field.ploughed",
@@ -11,6 +14,8 @@ const FIELD_TILE_IDS = Object.freeze({
 const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.grass, TILE_PNG_DIRECTORY + "grass.png"],
     [TILE_IDS.grassAlt, TILE_PNG_DIRECTORY + "grass_alt.png"],
+    [TILE_IDS.dirt, TILE_PNG_DIRECTORY + "dirt.png"],
+    [PATH_DIRT_ALT_TILE_ID, TILE_PNG_DIRECTORY + "dirt_alt.png"],
     [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],
     [FIELD_TILE_IDS.bare, TILE_PNG_DIRECTORY + "field_bare.png"],
     [FIELD_TILE_IDS.ploughed, TILE_PNG_DIRECTORY + "field_ploughed.png"],
@@ -61,10 +66,202 @@ function drawAtlasTile(tileId, worldX, worldY, project, width = 1, height = 1) {
     return true;
 }
 
+function fragmentScreenRect(worldX, worldY, width, height, project) {
+    const first = project({ x: worldX, y: worldY });
+    const second = project({ x: worldX + width, y: worldY + height });
+    const left = Math.floor(Math.min(first.x, second.x));
+    const right = Math.ceil(Math.max(first.x, second.x));
+    const top = Math.floor(Math.min(first.y, second.y));
+    const bottom = Math.ceil(Math.max(first.y, second.y));
+    return {
+        x: left,
+        y: top,
+        width: Math.max(1, right - left),
+        height: Math.max(1, bottom - top)
+    };
+}
+
+function drawAtlasTileFragment(
+    tileId,
+    tileX,
+    tileY,
+    project,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    localX,
+    localY,
+    localWidth,
+    localHeight
+) {
+    const image = tileImages.get(tileId);
+    if (!image || !tileReady.has(tileId)) return false;
+    const rect = fragmentScreenRect(
+        tileX + localX,
+        tileY + localY,
+        localWidth,
+        localHeight,
+        project
+    );
+    context.imageSmoothingEnabled = false;
+    context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height
+    );
+    return true;
+}
+
 const drawTileBeforeAtlas = drawTile;
 drawTile = function(tileId, worldX, worldY, project, width = 1, height = 1) {
     if (drawAtlasTile(tileId, worldX, worldY, project, width, height)) return;
     drawTileBeforeAtlas(tileId, worldX, worldY, project, width, height);
+};
+
+function pathTileId(x, y) {
+    return coordinateHash(x, y) % 4 === 0 ? PATH_DIRT_ALT_TILE_ID : TILE_IDS.dirt;
+}
+
+function pathEdgeOffset(point) {
+    const sampleX = Math.floor(point.x * PATH_SUBDIVISIONS);
+    const sampleY = Math.floor(point.y * PATH_SUBDIVISIONS);
+    const hash = coordinateHash(sampleX, sampleY);
+    return ((hash % 9) - 4) / 4 * PATH_EDGE_VARIATION_METRES;
+}
+
+function pathSampleCovered(entity, point) {
+    const geometry = entity.geometry;
+    if (entity.subtype === "market-square" && geometry?.type === "polygon") {
+        return pointInPolygon(point, geometry.points);
+    }
+    if (entity.subtype !== "road" || geometry?.type !== "polyline") return false;
+
+    const radius = Math.max(0, geometry.width ?? 0) / 2 + pathEdgeOffset(point);
+    if (radius <= 0) return false;
+    const radiusSquared = radius * radius;
+    for (let index = 1; index < geometry.points.length; index++) {
+        if (pointToSegmentDistanceSquared(point, geometry.points[index - 1], geometry.points[index]) <= radiusSquared) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function pathTileMayContain(entity, x, y) {
+    const geometry = entity.geometry;
+    if (entity.subtype === "market-square" && geometry?.type === "polygon") return true;
+    if (entity.subtype !== "road" || geometry?.type !== "polyline") return false;
+
+    const centre = { x: x + 0.5, y: y + 0.5 };
+    const radius = Math.max(0, geometry.width ?? 0) / 2 +
+        Math.SQRT1_2 +
+        PATH_EDGE_VARIATION_METRES;
+    const radiusSquared = radius * radius;
+    for (let index = 1; index < geometry.points.length; index++) {
+        if (pointToSegmentDistanceSquared(centre, geometry.points[index - 1], geometry.points[index]) <= radiusSquared) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function drawNaturalPathTile(entity, x, y, project) {
+    if (!pathTileMayContain(entity, x, y)) return true;
+
+    const tileId = pathTileId(x, y);
+    if (!tileReady.has(tileId)) return false;
+
+    const sourceStep = SOURCE_TILE_PIXELS / PATH_SUBDIVISIONS;
+    const worldStep = 1 / PATH_SUBDIVISIONS;
+
+    for (let row = 0; row < PATH_SUBDIVISIONS; row++) {
+        let runStart = -1;
+        for (let column = 0; column <= PATH_SUBDIVISIONS; column++) {
+            const covered = column < PATH_SUBDIVISIONS && pathSampleCovered(entity, {
+                x: x + (column + 0.5) * worldStep,
+                y: y + (row + 0.5) * worldStep
+            });
+
+            if (covered && runStart < 0) {
+                runStart = column;
+                continue;
+            }
+            if (covered || runStart < 0) continue;
+
+            const runLength = column - runStart;
+            drawAtlasTileFragment(
+                tileId,
+                x,
+                y,
+                project,
+                runStart * sourceStep,
+                row * sourceStep,
+                runLength * sourceStep,
+                sourceStep,
+                runStart * worldStep,
+                row * worldStep,
+                runLength * worldStep,
+                worldStep
+            );
+            runStart = -1;
+        }
+    }
+    return true;
+}
+
+function drawNaturalMapFeatureGroundTiles(project) {
+    if (!tileReady.has(TILE_IDS.dirt) || !tileReady.has(PATH_DIRT_ALT_TILE_ID)) {
+        drawMapFeatureGroundTiles(project);
+        return;
+    }
+
+    const frame = recording?.frames?.[frameIndex];
+    if (!frame) return;
+    const visible = visibleTileRange(project);
+    for (const entity of frame.entities) {
+        if (entity.category !== "map-feature" || (entity.subtype !== "road" && entity.subtype !== "market-square")) continue;
+        const range = mapFeatureTileRange(entity);
+        if (!range) continue;
+        const fringe = entity.subtype === "road" ? 1 : 0;
+        const minX = Math.max(range.minX - fringe, visible.minX);
+        const maxX = Math.min(range.maxX + fringe, visible.maxX);
+        const minY = Math.max(range.minY - fringe, visible.minY);
+        const maxY = Math.min(range.maxY + fringe, visible.maxY);
+        for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) {
+                drawNaturalPathTile(entity, x, y, project);
+            }
+        }
+    }
+}
+
+function drawNaturalWorldTiles(project) {
+    context.fillStyle = "#315b35";
+    context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    const range = visibleTileRange(project);
+    const step = groundTileStep(range);
+    for (let y = range.minY; y <= range.maxY; y += step) {
+        for (let x = range.minX; x <= range.maxX; x += step) {
+            const alternate = coordinateHash(x, y) % 5 === 0;
+            drawTile(alternate ? TILE_IDS.grassAlt : TILE_IDS.grass, x, y, project, step, step);
+        }
+    }
+
+    drawNaturalMapFeatureGroundTiles(project);
+}
+
+// The atlas-backed terrain intentionally replaces the old metre-grid presentation.
+// Geometry remains unchanged; only the way grass and dirt artwork is sampled changes.
+drawGrid = function(project) {
+    drawNaturalWorldTiles(project);
 };
 
 function fixtureTileId(entity) {
@@ -214,6 +411,10 @@ window.VillageTileAtlas = Object.freeze({
     sources: Object.freeze(Object.fromEntries(TILE_IMAGE_PATHS)),
     fieldTileIds: FIELD_TILE_IDS,
     tileCount: TILE_IMAGE_PATHS.size,
+    pathSubdivisions: PATH_SUBDIVISIONS,
+    pathSampleCovered,
+    pathTileMayContain,
+    pathTileId,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },
     get failed() { return tileFailed.size > 0; }
 });
