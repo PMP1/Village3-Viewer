@@ -126,25 +126,39 @@ function pathVisualWidth(entity) {
     return width % 2 === 0 ? Math.max(1, width - 1) : width;
 }
 
-function pathPerpendicular(dx, dy) {
-    if (dx === 0 && dy === 0) return { x: 0, y: 0 };
-    if (dx === 0) return { x: 1, y: 0 };
-    if (dy === 0) return { x: 0, y: 1 };
-    return { x: -Math.sign(dy), y: Math.sign(dx) };
+function pointSegmentDistanceSquared(point, start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (dx === 0 && dy === 0) {
+        const px = point.x - start.x;
+        const py = point.y - start.y;
+        return px * px + py * py;
+    }
+    const t = Math.max(0, Math.min(1,
+        ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)
+    ));
+    const closestX = start.x + t * dx;
+    const closestY = start.y + t * dy;
+    const px = point.x - closestX;
+    const py = point.y - closestY;
+    return px * px + py * py;
 }
 
 function addSegmentBandCells(cells, segmentCells, radius) {
-    for (let index = 0; index < segmentCells.length; index++) {
-        const previous = segmentCells[Math.max(0, index - 1)];
-        const next = segmentCells[Math.min(segmentCells.length - 1, index + 1)];
-        const dx = Math.sign(next.x - previous.x);
-        const dy = Math.sign(next.y - previous.y);
-        const perpendicular = pathPerpendicular(dx, dy);
-        for (let offset = -radius; offset <= radius; offset++) {
-            cells.add(pathCellKey(
-                segmentCells[index].x + perpendicular.x * offset,
-                segmentCells[index].y + perpendicular.y * offset
-            ));
+    const start = segmentCells[0];
+    const end = segmentCells[segmentCells.length - 1];
+    const padding = Math.ceil(radius);
+    const radiusSquared = radius * radius;
+
+    // Fill every metre cell whose centre falls inside the unchanged road width.
+    // This closes the empty checker gaps caused by parallel diagonal tile rows.
+    for (const centre of segmentCells) {
+        for (let y = centre.y - padding; y <= centre.y + padding; y++) {
+            for (let x = centre.x - padding; x <= centre.x + padding; x++) {
+                if (pointSegmentDistanceSquared({ x, y }, start, end) <= radiusSquared) {
+                    cells.add(pathCellKey(x, y));
+                }
+            }
         }
     }
 }
@@ -154,7 +168,7 @@ function roadPathCells(entity) {
     const cells = new Set();
     if (points.length === 0) return cells;
 
-    const radius = Math.floor(pathVisualWidth(entity) / 2);
+    const radius = pathVisualWidth(entity) / 2;
     if (points.length === 1) {
         const x = Math.floor(points[0].x);
         const y = Math.floor(points[0].y);
@@ -314,9 +328,9 @@ function drawEightDirectionWorldTiles(project) {
 }
 
 // Simulation roads keep their objective polyline and width. Only the visible
-// presentation is rasterised to eight-connected metre cells. Width is added
-// perpendicular to each segment so bends no longer balloon into square blocks;
-// a finished neighbour-mask autotile supplies the irregular grass/dirt boundary.
+// presentation is rasterised to eight-connected metre cells. Cell centres within
+// the unchanged displayed width are filled so diagonal runs stay continuous;
+// neighbour-mask autotiles supply the irregular grass/dirt boundary.
 drawGrid = function(project) {
     drawEightDirectionWorldTiles(project);
 };

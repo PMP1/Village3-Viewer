@@ -22,9 +22,12 @@ beneath, with occasional tiny grass blades and flowers breaking into the track.
 The viewer chooses a sprite using the existing eight-neighbour mask. It may
 quarter-turn the equivalent mask art by world cell to vary the surface grain;
 rotating the matching mask and sprite together preserves the path silhouette.
-This is a visual detail only and does not alter road geometry, navigation,
-collision or the one-metre simulation grid. The 32×32 sprite still renders at
-32 pixels per simulation metre. Market squares continue to use full dirt tiles.
+Road polylines and their widths remain simulation-owned. The viewer samples
+rendered metre cells across each unchanged road width, which fills the gaps
+between diagonal rows and keeps the visible dirt connected. This changes only
+the rendered surface; routing, navigation, collision and the one-metre simulation
+grid remain unchanged. The 32×32 sprite still renders at 32 pixels per metre.
+Market squares continue to use full dirt tiles.
 
 The older `path_center*.png` and `path_[direction].png` files are legacy artwork
 from the composited-arm experiment and are no longer loaded by the viewer.
