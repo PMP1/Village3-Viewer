@@ -2,9 +2,8 @@
 
 These are the editable terrain and fixture assets used by `viewer/tile-atlas.js`.
 
-- `grass.png` → `terrain.grass`
-- `grass_alt.png` → `terrain.grass-alt`
-- `wall_grass.png` → sparse low grass tufts on plain exterior wall bays
+- `grass.png`, `grass_alt.png`, `grass_3.png`, `grass_4.png` → four varied meadow patches for `terrain.grass*`
+- `wall_grass.png` through `wall_grass_4.png` → transparent 2m foundation foliage for plain exterior wall bays
 - `dirt.png` → `terrain.dirt`
 - `dirt_alt.png` → retained alternate full dirt artwork
 - `path_autotiles.png` → 16×16 atlas of 256 finished 32×32 path sprites, indexed by the eight neighbouring path cells
@@ -14,7 +13,7 @@ These are the editable terrain and fixture assets used by `viewer/tile-atlas.js`
 - `dining_table.png` → `fixture.dining-table`
 - `service_counter.png` → `fixture.service-counter`
 
-Ordinary terrain, floor, fixture and groundcover tiles remain 32×32 pixels. The grass tiles use soft green mottling and clustered blades, with rare tiny blooms. Four transparent wall-grass sprites alternate across eligible plain front wall bays to create a fuller, irregular foundation fringe. Their low, leafy silhouettes keep doors and windows clear; the decoration does not change collision or navigation. `path_autotiles.png`
+The meadow uses four 128×128 pixel patches, each drawn over a 4×4m area at 32 rendered pixels per metre. Their layered green blades and leaf clusters vary without visible one-metre grid lines; rare tiny blooms add color sparingly. Four transparent 64×32 sprites form an irregular leafy fringe across eligible plain 2m front wall bays. Openings stay clear, and the decoration does not change collision or navigation. `path_autotiles.png`
 is a 512×512 atlas containing 256 finished 32×32 path sprites. The artwork uses
 warm packed earth, fine dusty surface variation, small embedded pebbles and
 subtle dirt-side edge shading. Its irregular transparent verges reveal the grass

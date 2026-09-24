@@ -23,6 +23,8 @@ const FIELD_TILE_IDS = Object.freeze({
 const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.grass, TILE_PNG_DIRECTORY + "grass.png"],
     [TILE_IDS.grassAlt, TILE_PNG_DIRECTORY + "grass_alt.png"],
+    [TILE_IDS.grassThird, TILE_PNG_DIRECTORY + "grass_3.png"],
+    [TILE_IDS.grassFourth, TILE_PNG_DIRECTORY + "grass_4.png"],
     [TILE_IDS.groundCover, TILE_PNG_DIRECTORY + "wall_grass.png"],
     [TILE_IDS.groundCoverAlt, TILE_PNG_DIRECTORY + "wall_grass_2.png"],
     [TILE_IDS.groundCoverThird, TILE_PNG_DIRECTORY + "wall_grass_3.png"],
@@ -65,12 +67,15 @@ function drawAtlasTile(tileId, worldX, worldY, project, width = 1, height = 1) {
     if (!image || !tileReady.has(tileId)) return false;
     const rect = tileScreenRect(worldX, worldY, width, height, project);
     context.imageSmoothingEnabled = false;
+    const usesNativeSize = tileId.startsWith("terrain.grass") || tileId.startsWith("terrain.wall-grass");
+    const sourceWidth = usesNativeSize ? (image.naturalWidth || image.width || SOURCE_TILE_PIXELS) : SOURCE_TILE_PIXELS;
+    const sourceHeight = usesNativeSize ? (image.naturalHeight || image.height || SOURCE_TILE_PIXELS) : SOURCE_TILE_PIXELS;
     context.drawImage(
         image,
         0,
         0,
-        SOURCE_TILE_PIXELS,
-        SOURCE_TILE_PIXELS,
+        sourceWidth,
+        sourceHeight,
         rect.x,
         rect.y,
         rect.width,

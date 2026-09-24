@@ -5,6 +5,8 @@ const ROOM_LABEL_MIN_SCALE = 10;
 const TILE_IDS = Object.freeze({
     grass: "terrain.grass",
     grassAlt: "terrain.grass-alt",
+    grassThird: "terrain.grass-third",
+    grassFourth: "terrain.grass-fourth",
     groundCover: "terrain.wall-grass",
     groundCoverAlt: "terrain.wall-grass-alt",
     groundCoverThird: "terrain.wall-grass-third",
@@ -89,7 +91,11 @@ function tileCanvas(tileId) {
             tile = createTileCanvas((tileContext, size) => drawGrassTile(tileContext, size, false));
             break;
         case TILE_IDS.grassAlt:
+        case TILE_IDS.grassFourth:
             tile = createTileCanvas((tileContext, size) => drawGrassTile(tileContext, size, true));
+            break;
+        case TILE_IDS.grassThird:
+            tile = createTileCanvas((tileContext, size) => drawGrassTile(tileContext, size, false));
             break;
         case TILE_IDS.groundCover:
             tile = createTileCanvas(() => {});
@@ -245,35 +251,20 @@ function drawWorldTiles(project) {
 
     const range = visibleTileRange(project);
     const step = groundTileStep(range);
-    for (let y = range.minY; y <= range.maxY; y += step) {
-        for (let x = range.minX; x <= range.maxX; x += step) {
-            const alternate = coordinateHash(x, y) % 5 === 0;
-            drawTile(alternate ? TILE_IDS.grassAlt : TILE_IDS.grass, x, y, project, step, step);
+    const patchSize = 4 * step;
+    const firstX = Math.floor(range.minX / patchSize) * patchSize;
+    const firstY = Math.floor(range.minY / patchSize) * patchSize;
+    const grassTiles = [TILE_IDS.grass, TILE_IDS.grassAlt, TILE_IDS.grassThird, TILE_IDS.grassFourth];
+    for (let y = firstY; y <= range.maxY; y += patchSize) {
+        for (let x = firstX; x <= range.maxX; x += patchSize) {
+            const patchX = Math.floor(x / patchSize);
+            const patchY = Math.floor(y / patchSize);
+            const tileId = grassTiles[coordinateHash(patchX, patchY) % grassTiles.length];
+            drawTile(tileId, x, y, project, patchSize, patchSize);
         }
     }
 
     drawMapFeatureGroundTiles(project);
-
-    if (project.scale < 11) return;
-    context.save();
-    context.strokeStyle = "rgba(14, 35, 20, 0.16)";
-    context.lineWidth = 1;
-    const fineRange = visibleTileRange(project);
-    for (let x = fineRange.minX; x <= fineRange.maxX; x++) {
-        const point = project({ x, y: 0 });
-        context.beginPath();
-        context.moveTo(Math.round(point.x) + 0.5, 0);
-        context.lineTo(Math.round(point.x) + 0.5, canvasHeight);
-        context.stroke();
-    }
-    for (let y = fineRange.minY; y <= fineRange.maxY; y++) {
-        const point = project({ x: 0, y });
-        context.beginPath();
-        context.moveTo(0, Math.round(point.y) + 0.5);
-        context.lineTo(canvasWidth, Math.round(point.y) + 0.5);
-        context.stroke();
-    }
-    context.restore();
 }
 
 function drawBuildingFloor(footprint, project) {
@@ -399,21 +390,20 @@ function groundcoverWallItems(walls, project) {
             segment.variant !== "plain") continue;
 
         const length = segment.length ?? 2;
-        // Place varied one-metre clumps along the screen-near foundation edge.
-        // Their transparent upper half keeps stonework and windows readable.
+        // A broad, transparent 2m clump blends into the screen-near foundation.
+        // Its irregular canopy leaves gaps and keeps openings clear.
         const outsideY = segment.side === "north" ? segment.y - 1 : segment.y;
-        for (let offset = 0; offset < length; offset++) {
-            const cellX = segment.x + offset;
-            const variantIndex = ((Math.floor(cellX + segment.y) % variants.length) + variants.length) % variants.length;
-            items.push({
-                kind: "groundcover",
-                tileId: variants[variantIndex],
-                x: cellX,
-                y: outsideY,
-                depth: wallSegmentDepth(segment, project) + 0.01,
-                key: [segment.x, segment.y, segment.side, cellX].join(":")
-            });
-        }
+        const variantIndex = ((Math.floor(segment.x + segment.y) % variants.length) + variants.length) % variants.length;
+        items.push({
+            kind: "groundcover",
+            tileId: variants[variantIndex],
+            x: segment.x,
+            y: outsideY,
+            width: length,
+            height: 1,
+            depth: wallSegmentDepth(segment, project) + 0.01,
+            key: [segment.x, segment.y, segment.side].join(":")
+        });
     }
     return items;
 }
@@ -546,7 +536,7 @@ if (renderMapBeforeTileRenderer) {
                 if (item.kind === "wall") {
                     drawBuildingSegment(item.segment, project);
                 } else if (item.kind === "groundcover") {
-                    drawTile(item.tileId, item.x, item.y, project);
+                    drawTile(item.tileId, item.x, item.y, project, item.width, item.height);
                 } else {
                     drawEntity(item.entity, item.point, project);
                     raisedEntities.push(item.entity);
