@@ -1,17 +1,6 @@
 const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
-const PATH_DIRT_ALT_TILE_ID = "terrain.dirt-alt";
-const PATH_OVERLAY_TILE_IDS = Object.freeze({
-    center: "terrain.path.center",
-    centerAlt: "terrain.path.center-alt",
-    n: "terrain.path.n",
-    ne: "terrain.path.ne",
-    e: "terrain.path.e",
-    se: "terrain.path.se",
-    s: "terrain.path.s",
-    sw: "terrain.path.sw",
-    w: "terrain.path.w",
-    nw: "terrain.path.nw"
-});
+const PATH_AUTOTILE_TILE_ID = "terrain.path.autotiles";
+const PATH_AUTOTILE_COLUMNS = 16;
 const PATH_NEIGHBOURS = Object.freeze([
     Object.freeze({ key: "n", dx: 0, dy: -1 }),
     Object.freeze({ key: "ne", dx: 1, dy: -1 }),
@@ -35,17 +24,7 @@ const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.grass, TILE_PNG_DIRECTORY + "grass.png"],
     [TILE_IDS.grassAlt, TILE_PNG_DIRECTORY + "grass_alt.png"],
     [TILE_IDS.dirt, TILE_PNG_DIRECTORY + "dirt.png"],
-    [PATH_DIRT_ALT_TILE_ID, TILE_PNG_DIRECTORY + "dirt_alt.png"],
-    [PATH_OVERLAY_TILE_IDS.center, TILE_PNG_DIRECTORY + "path_center.png"],
-    [PATH_OVERLAY_TILE_IDS.centerAlt, TILE_PNG_DIRECTORY + "path_center_alt.png"],
-    [PATH_OVERLAY_TILE_IDS.n, TILE_PNG_DIRECTORY + "path_n.png"],
-    [PATH_OVERLAY_TILE_IDS.ne, TILE_PNG_DIRECTORY + "path_ne.png"],
-    [PATH_OVERLAY_TILE_IDS.e, TILE_PNG_DIRECTORY + "path_e.png"],
-    [PATH_OVERLAY_TILE_IDS.se, TILE_PNG_DIRECTORY + "path_se.png"],
-    [PATH_OVERLAY_TILE_IDS.s, TILE_PNG_DIRECTORY + "path_s.png"],
-    [PATH_OVERLAY_TILE_IDS.sw, TILE_PNG_DIRECTORY + "path_sw.png"],
-    [PATH_OVERLAY_TILE_IDS.w, TILE_PNG_DIRECTORY + "path_w.png"],
-    [PATH_OVERLAY_TILE_IDS.nw, TILE_PNG_DIRECTORY + "path_nw.png"],
+    [PATH_AUTOTILE_TILE_ID, TILE_PNG_DIRECTORY + "path_autotiles.png"],
     [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],
     [FIELD_TILE_IDS.bare, TILE_PNG_DIRECTORY + "field_bare.png"],
     [FIELD_TILE_IDS.ploughed, TILE_PNG_DIRECTORY + "field_ploughed.png"],
@@ -102,16 +81,6 @@ drawTile = function(tileId, worldX, worldY, project, width = 1, height = 1) {
     drawTileBeforeAtlas(tileId, worldX, worldY, project, width, height);
 };
 
-function pathTileId(x, y) {
-    return coordinateHash(x, y) % 4 === 0 ? PATH_DIRT_ALT_TILE_ID : TILE_IDS.dirt;
-}
-
-function pathCenterTileId(x, y) {
-    return coordinateHash(x, y) % 4 === 0
-        ? PATH_OVERLAY_TILE_IDS.centerAlt
-        : PATH_OVERLAY_TILE_IDS.center;
-}
-
 function pathCellKey(x, y) {
     return `${x},${y}`;
 }
@@ -152,42 +121,54 @@ function rasterizeEightDirectionSegment(start, end) {
     return cells;
 }
 
-function roadCenterlineCells(entity) {
-    const points = entity.geometry?.type === "polyline" ? entity.geometry.points : [];
-    const cells = new Set();
-    if (points.length === 1) {
-        cells.add(pathCellKey(Math.floor(points[0].x), Math.floor(points[0].y)));
-        return cells;
-    }
-    for (let index = 1; index < points.length; index++) {
-        for (const cell of rasterizeEightDirectionSegment(points[index - 1], points[index])) {
-            cells.add(pathCellKey(cell.x, cell.y));
-        }
-    }
-    return cells;
-}
-
 function pathVisualWidth(entity) {
     const width = Math.max(1, Math.round(entity.geometry?.width ?? 1));
-    // An odd tile band stays centred on the eight-direction centreline. The
-    // current four-metre village roads therefore render as a three-tile track,
-    // closer to the classic RPG scale while leaving their simulation width alone.
     return width % 2 === 0 ? Math.max(1, width - 1) : width;
 }
 
-function roadPathCells(entity) {
-    const centreline = roadCenterlineCells(entity);
-    const radius = Math.floor(pathVisualWidth(entity) / 2);
-    if (radius === 0) return centreline;
+function pathPerpendicular(dx, dy) {
+    if (dx === 0 && dy === 0) return { x: 0, y: 0 };
+    if (dx === 0) return { x: 1, y: 0 };
+    if (dy === 0) return { x: 0, y: 1 };
+    return { x: -Math.sign(dy), y: Math.sign(dx) };
+}
 
-    const cells = new Set();
-    for (const key of centreline) {
-        const centre = parsePathCellKey(key);
-        for (let dy = -radius; dy <= radius; dy++) {
-            for (let dx = -radius; dx <= radius; dx++) {
-                cells.add(pathCellKey(centre.x + dx, centre.y + dy));
-            }
+function addSegmentBandCells(cells, segmentCells, radius) {
+    for (let index = 0; index < segmentCells.length; index++) {
+        const previous = segmentCells[Math.max(0, index - 1)];
+        const next = segmentCells[Math.min(segmentCells.length - 1, index + 1)];
+        const dx = Math.sign(next.x - previous.x);
+        const dy = Math.sign(next.y - previous.y);
+        const perpendicular = pathPerpendicular(dx, dy);
+        for (let offset = -radius; offset <= radius; offset++) {
+            cells.add(pathCellKey(
+                segmentCells[index].x + perpendicular.x * offset,
+                segmentCells[index].y + perpendicular.y * offset
+            ));
         }
+    }
+}
+
+function roadPathCells(entity) {
+    const points = entity.geometry?.type === "polyline" ? entity.geometry.points : [];
+    const cells = new Set();
+    if (points.length === 0) return cells;
+
+    const radius = Math.floor(pathVisualWidth(entity) / 2);
+    if (points.length === 1) {
+        const x = Math.floor(points[0].x);
+        const y = Math.floor(points[0].y);
+        cells.add(pathCellKey(x, y));
+        for (let offset = 1; offset <= radius; offset++) {
+            cells.add(pathCellKey(x + offset, y));
+            cells.add(pathCellKey(x - offset, y));
+        }
+        return cells;
+    }
+
+    for (let index = 1; index < points.length; index++) {
+        const segmentCells = rasterizeEightDirectionSegment(points[index - 1], points[index]);
+        addSegmentBandCells(cells, segmentCells, radius);
     }
     return cells;
 }
@@ -221,24 +202,74 @@ function pathConnections(cells, x, y) {
     ])));
 }
 
-function drawEightDirectionRoadTile(cells, x, y, project) {
-    const connections = pathConnections(cells, x, y);
-    if (connections.n && connections.e && connections.s && connections.w) {
-        return drawTile(pathTileId(x, y), x, y, project);
+function pathNeighbourMask(cells, x, y) {
+    let mask = 0;
+    for (let index = 0; index < PATH_NEIGHBOURS.length; index++) {
+        const neighbour = PATH_NEIGHBOURS[index];
+        if (cells.has(pathCellKey(x + neighbour.dx, y + neighbour.dy))) {
+            mask |= 1 << index;
+        }
     }
+    return mask;
+}
 
-    if (!drawAtlasTile(pathCenterTileId(x, y), x, y, project)) return false;
-    for (const neighbour of PATH_NEIGHBOURS) {
-        if (!connections[neighbour.key]) continue;
-        if (!drawAtlasTile(PATH_OVERLAY_TILE_IDS[neighbour.key], x, y, project)) return false;
+function rotatePathMask(mask, quarterTurns) {
+    const shift = ((quarterTurns % 4) + 4) % 4 * 2;
+    return shift === 0 ? mask : ((mask << shift) | (mask >> (8 - shift))) & 0xff;
+}
+
+function pathTextureRotation(x, y) {
+    return (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0 & 3;
+}
+
+function drawPathAutotile(cells, x, y, project) {
+    const image = tileImages.get(PATH_AUTOTILE_TILE_ID);
+    if (!image || !tileReady.has(PATH_AUTOTILE_TILE_ID)) return false;
+
+    const mask = pathNeighbourMask(cells, x, y);
+    const rotation = pathTextureRotation(x, y);
+    const sourceMask = rotatePathMask(mask, rotation);
+    const sourceX = (sourceMask % PATH_AUTOTILE_COLUMNS) * SOURCE_TILE_PIXELS;
+    const sourceY = Math.floor(sourceMask / PATH_AUTOTILE_COLUMNS) * SOURCE_TILE_PIXELS;
+    const rect = tileScreenRect(x, y, 1, 1, project);
+
+    context.imageSmoothingEnabled = false;
+    if (rotation === 0) {
+        context.drawImage(
+            image,
+            sourceX,
+            sourceY,
+            SOURCE_TILE_PIXELS,
+            SOURCE_TILE_PIXELS,
+            rect.x,
+            rect.y,
+            rect.width,
+            rect.height
+        );
+    } else {
+        // The rotated neighbour mask gives the same silhouette after the
+        // art is transformed back, while changing the substrate grain phase.
+        context.save();
+        context.translate(rect.x + rect.width / 2, rect.y + rect.height / 2);
+        context.rotate(-rotation * Math.PI / 2);
+        context.drawImage(
+            image,
+            sourceX,
+            sourceY,
+            SOURCE_TILE_PIXELS,
+            SOURCE_TILE_PIXELS,
+            -rect.width / 2,
+            -rect.height / 2,
+            rect.width,
+            rect.height
+        );
+        context.restore();
     }
     return true;
 }
 
 function pathAssetsReady() {
-    return tileReady.has(TILE_IDS.dirt) &&
-        tileReady.has(PATH_DIRT_ALT_TILE_ID) &&
-        Object.values(PATH_OVERLAY_TILE_IDS).every(tileId => tileReady.has(tileId));
+    return tileReady.has(TILE_IDS.dirt) && tileReady.has(PATH_AUTOTILE_TILE_ID);
 }
 
 function drawEightDirectionMapFeatureGroundTiles(project) {
@@ -250,6 +281,7 @@ function drawEightDirectionMapFeatureGroundTiles(project) {
     const frame = recording?.frames?.[frameIndex];
     if (!frame) return;
     const visible = visibleTileRange(project);
+
     for (const entity of frame.entities) {
         if (entity.category !== "map-feature" || (entity.subtype !== "road" && entity.subtype !== "market-square")) continue;
         const cells = pathCellsForFeature(entity);
@@ -257,9 +289,9 @@ function drawEightDirectionMapFeatureGroundTiles(project) {
             const { x, y } = parsePathCellKey(key);
             if (x < visible.minX || x > visible.maxX || y < visible.minY || y > visible.maxY) continue;
             if (entity.subtype === "road") {
-                drawEightDirectionRoadTile(cells, x, y, project);
+                drawPathAutotile(cells, x, y, project);
             } else {
-                drawTile(pathTileId(x, y), x, y, project);
+                drawTile(TILE_IDS.dirt, x, y, project);
             }
         }
     }
@@ -281,17 +313,15 @@ function drawEightDirectionWorldTiles(project) {
     drawEightDirectionMapFeatureGroundTiles(project);
 }
 
-// Roads keep their objective metre-based polyline/width for simulation. The viewer
-// rasterises that geometry onto an eight-connected tile line and composes PNG arms
-// so the visible path follows the classic RPG horizontal/vertical/diagonal style.
+// Simulation roads keep their objective polyline and width. Only the visible
+// presentation is rasterised to eight-connected metre cells. Width is added
+// perpendicular to each segment so bends no longer balloon into square blocks;
+// a finished neighbour-mask autotile supplies the irregular grass/dirt boundary.
 drawGrid = function(project) {
     drawEightDirectionWorldTiles(project);
 };
 
 function fixtureTileId(entity) {
-    // Prop/scenery-only ids deliberately do not have tile-atlas images. They make
-    // those sprites participate in the existing raised-depth pass while their
-    // dedicated renderers own visual sprite bounds and artwork.
     if (entity.subtype === "cart") return "fixture.cart";
     if (entity.subtype === "tree") return "scenery.tree";
     if (entity.properties?.facilityType === "hearth") return "fixture.hearth";
@@ -367,8 +397,6 @@ function fieldTileFallbackState(entity) {
 function fieldTileStateLookup(entity) {
     const states = new Map();
 
-    // Older recordings stored one entry per exceptional metre. Retain support so
-    // saved/debug recordings remain viewable after the compact run format ships.
     for (const tile of entity.agriculture?.tileStates ?? []) {
         states.set(`${tile.x},${tile.y}`, tile.state);
     }
@@ -384,9 +412,6 @@ function fieldTileStateLookup(entity) {
     return states;
 }
 
-// Some focused viewer harnesses intentionally load the tile atlas without the
-// map-feature renderer. Only decorate field drawing when that optional layer is
-// present; ordinary tile and fixture atlas behaviour remains independently usable.
 if (typeof drawFieldTiles === "function" && typeof mapFeaturePointInPolygon === "function") {
     const drawFieldTilesBeforeAtlas = drawFieldTiles;
     drawFieldTiles = function drawFieldTilesFromAtlas(entity, project, selected) {
@@ -434,13 +459,16 @@ window.VillageTileAtlas = Object.freeze({
     source: TILE_PNG_DIRECTORY,
     sources: Object.freeze(Object.fromEntries(TILE_IMAGE_PATHS)),
     fieldTileIds: FIELD_TILE_IDS,
-    pathOverlayTileIds: PATH_OVERLAY_TILE_IDS,
+    pathAutotileId: PATH_AUTOTILE_TILE_ID,
     tileCount: TILE_IMAGE_PATHS.size,
     rasterizeEightDirectionSegment,
     pathVisualWidth,
+    roadPathCells,
     pathCellsForFeature,
     pathConnections,
-    pathTileId,
+    pathNeighbourMask,
+    rotatePathMask,
+    pathTextureRotation,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },
     get failed() { return tileFailed.size > 0; }
 });
