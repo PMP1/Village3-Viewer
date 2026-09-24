@@ -23,6 +23,7 @@ const FIELD_TILE_IDS = Object.freeze({
 const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.grass, TILE_PNG_DIRECTORY + "grass.png"],
     [TILE_IDS.grassAlt, TILE_PNG_DIRECTORY + "grass_alt.png"],
+    [TILE_IDS.groundCover, TILE_PNG_DIRECTORY + "wall_grass.png"],
     [TILE_IDS.dirt, TILE_PNG_DIRECTORY + "dirt.png"],
     [PATH_AUTOTILE_TILE_ID, TILE_PNG_DIRECTORY + "path_autotiles.png"],
     [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],

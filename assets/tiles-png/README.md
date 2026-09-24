@@ -4,6 +4,7 @@ These are the editable terrain and fixture assets used by `viewer/tile-atlas.js`
 
 - `grass.png` → `terrain.grass`
 - `grass_alt.png` → `terrain.grass-alt`
+- `wall_grass.png` → sparse low grass tufts on plain exterior wall bays
 - `dirt.png` → `terrain.dirt`
 - `dirt_alt.png` → retained alternate full dirt artwork
 - `path_autotiles.png` → 16×16 atlas of 256 finished 32×32 path sprites, indexed by the eight neighbouring path cells
@@ -13,7 +14,7 @@ These are the editable terrain and fixture assets used by `viewer/tile-atlas.js`
 - `dining_table.png` → `fixture.dining-table`
 - `service_counter.png` → `fixture.service-counter`
 
-Ordinary terrain, floor and fixture tiles remain 32×32 pixels. `path_autotiles.png`
+Ordinary terrain, floor, fixture and groundcover tiles remain 32×32 pixels. The grass tiles use gently varied green tones with scattered blades and rare tiny blooms. The transparent `wall_grass.png` sprite is depth-sorted just ahead of eligible plain front wall bays, kept away from doors, windows and nearby road/market cells, and never changes collision or navigation. `path_autotiles.png`
 is a 512×512 atlas containing 256 finished 32×32 path sprites. The artwork uses
 warm packed earth, fine dusty surface variation, small embedded pebbles and
 subtle dirt-side edge shading. Its irregular transparent verges reveal the grass

@@ -5,6 +5,7 @@ const ROOM_LABEL_MIN_SCALE = 10;
 const TILE_IDS = Object.freeze({
     grass: "terrain.grass",
     grassAlt: "terrain.grass-alt",
+    groundCover: "terrain.wall-grass",
     dirt: "terrain.dirt",
     woodFloor: "building.floor.wood",
     wallHorizontal: "building.wall.stone-horizontal",
@@ -86,6 +87,9 @@ function tileCanvas(tileId) {
             break;
         case TILE_IDS.grassAlt:
             tile = createTileCanvas((tileContext, size) => drawGrassTile(tileContext, size, true));
+            break;
+        case TILE_IDS.groundCover:
+            tile = createTileCanvas(() => {});
             break;
         case TILE_IDS.dirt:
             tile = createTileCanvas(drawDirtTile);
@@ -377,7 +381,50 @@ function wallSegmentDepth(segment, project) {
     return Math.max(first.y, second.y);
 }
 
+function groundcoverWallItems(walls, entities, project) {
+    const occupiedPathCells = new Set();
+    for (const entity of entities ?? []) {
+        if (entity.category !== "map-feature" || (entity.subtype !== "road" && entity.subtype !== "market-square")) continue;
+        const cells = window.VillageTileAtlas?.pathCellsForFeature?.(entity);
+        if (cells) for (const key of cells) occupiedPathCells.add(key);
+    }
+
+    const items = [];
+    for (const segment of walls) {
+        // Only low plants on uninterrupted plain frontage: doors and windows stay clear.
+        if (segment.layer !== "exterior" || segment.face !== "front" ||
+            segment.orientation !== "horizontal" || segment.role !== "wall-bay-2" ||
+            segment.variant !== "plain") continue;
+        if ((Math.floor(segment.x + segment.y) % 3 + 3) % 3 !== 0) continue;
+
+        const length = segment.length ?? 2;
+        const centreX = segment.x + length / 2;
+        const cellX = Math.floor(centreX);
+        const cellY = Math.floor(segment.y);
+        let pathNearby = false;
+        for (let dy = -1; dy <= 1 && !pathNearby; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (occupiedPathCells.has(`${cellX + dx},${cellY + dy}`)) {
+                    pathNearby = true;
+                    break;
+                }
+            }
+        }
+        if (pathNearby) continue;
+
+        items.push({
+            kind: "groundcover",
+            x: centreX - 0.5,
+            y: segment.y - 1,
+            depth: wallSegmentDepth(segment, project) + 0.01,
+            key: [segment.x, segment.y, segment.side].join(":")
+        });
+    }
+    return items;
+}
+
 function raisedItemPriority(item) {
+    if (item.kind === "groundcover") return 35;
     if (item.kind !== "wall") return 10;
     const structuralPost = item.segment.role === "shared-rear-post" ||
         item.segment.role === "shared-front-post" ||
@@ -390,6 +437,7 @@ function raisedItemPriority(item) {
 }
 
 function raisedItemStableKey(item) {
+    if (item.kind === "groundcover") return "groundcover:" + item.key;
     if (item.kind === "wall") {
         const segment = item.segment;
         return ["wall", segment.layer, segment.side, segment.x, segment.y, segment.role, segment.variant, segment.doorId].join(":");
@@ -412,6 +460,7 @@ function raisedRenderItems(visibleItems, project) {
             for (const segment of segments) {
                 raised.push({ kind: "wall", segment, depth: wallSegmentDepth(segment, project) });
             }
+            raised.push(...groundcoverWallItems(walls, recording?.frames?.[frameIndex]?.entities, project));
         } else if (isRaisedDepthEntity(item.entity)) {
             raised.push({ kind: "entity", entity: item.entity, point: item.point, bounds: item.bounds, depth: raisedEntityDepth(item) });
         }
@@ -501,6 +550,8 @@ if (renderMapBeforeTileRenderer) {
             for (const item of raisedItems) {
                 if (item.kind === "wall") {
                     drawBuildingSegment(item.segment, project);
+                } else if (item.kind === "groundcover") {
+                    drawTile(TILE_IDS.groundCover, item.x, item.y, project);
                 } else {
                     drawEntity(item.entity, item.point, project);
                     raisedEntities.push(item.entity);
@@ -524,5 +575,6 @@ window.VillageTileRenderer = Object.freeze({
     isRaisedDepthEntity,
     raisedEntityDepth,
     wallSegmentDepth,
-    compareRaisedRenderItems
+    compareRaisedRenderItems,
+    groundcoverWallItems
 });
