@@ -6,6 +6,9 @@ const TILE_IDS = Object.freeze({
     grass: "terrain.grass",
     grassAlt: "terrain.grass-alt",
     groundCover: "terrain.wall-grass",
+    groundCoverAlt: "terrain.wall-grass-alt",
+    groundCoverThird: "terrain.wall-grass-third",
+    groundCoverFourth: "terrain.wall-grass-fourth",
     dirt: "terrain.dirt",
     woodFloor: "building.floor.wood",
     wallHorizontal: "building.wall.stone-horizontal",
@@ -381,44 +384,36 @@ function wallSegmentDepth(segment, project) {
     return Math.max(first.y, second.y);
 }
 
-function groundcoverWallItems(walls, entities, project) {
-    const occupiedPathCells = new Set();
-    for (const entity of entities ?? []) {
-        if (entity.category !== "map-feature" || (entity.subtype !== "road" && entity.subtype !== "market-square")) continue;
-        const cells = window.VillageTileAtlas?.pathCellsForFeature?.(entity);
-        if (cells) for (const key of cells) occupiedPathCells.add(key);
-    }
-
+function groundcoverWallItems(walls, project) {
     const items = [];
+    const variants = [
+        TILE_IDS.groundCover,
+        TILE_IDS.groundCoverAlt,
+        TILE_IDS.groundCoverThird,
+        TILE_IDS.groundCoverFourth
+    ];
     for (const segment of walls) {
-        // Only low plants on uninterrupted plain frontage: doors and windows stay clear.
+        // Fill plain frontage with low foliage; openings and window bays stay clear.
         if (segment.layer !== "exterior" || segment.face !== "front" ||
             segment.orientation !== "horizontal" || segment.role !== "wall-bay-2" ||
             segment.variant !== "plain") continue;
-        if ((Math.floor(segment.x + segment.y) % 3 + 3) % 3 !== 0) continue;
 
         const length = segment.length ?? 2;
-        const centreX = segment.x + length / 2;
-        const cellX = Math.floor(centreX);
-        const cellY = Math.floor(segment.y);
-        let pathNearby = false;
-        for (let dy = -1; dy <= 1 && !pathNearby; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-                if (occupiedPathCells.has(`${cellX + dx},${cellY + dy}`)) {
-                    pathNearby = true;
-                    break;
-                }
-            }
+        // Place varied one-metre clumps along the screen-near foundation edge.
+        // Their transparent upper half keeps stonework and windows readable.
+        const outsideY = segment.side === "north" ? segment.y - 1 : segment.y;
+        for (let offset = 0; offset < length; offset++) {
+            const cellX = segment.x + offset;
+            const variantIndex = ((Math.floor(cellX + segment.y) % variants.length) + variants.length) % variants.length;
+            items.push({
+                kind: "groundcover",
+                tileId: variants[variantIndex],
+                x: cellX,
+                y: outsideY,
+                depth: wallSegmentDepth(segment, project) + 0.01,
+                key: [segment.x, segment.y, segment.side, cellX].join(":")
+            });
         }
-        if (pathNearby) continue;
-
-        items.push({
-            kind: "groundcover",
-            x: centreX - 0.5,
-            y: segment.y - 1,
-            depth: wallSegmentDepth(segment, project) + 0.01,
-            key: [segment.x, segment.y, segment.side].join(":")
-        });
     }
     return items;
 }
@@ -460,7 +455,7 @@ function raisedRenderItems(visibleItems, project) {
             for (const segment of segments) {
                 raised.push({ kind: "wall", segment, depth: wallSegmentDepth(segment, project) });
             }
-            raised.push(...groundcoverWallItems(walls, recording?.frames?.[frameIndex]?.entities, project));
+            raised.push(...groundcoverWallItems(walls, project));
         } else if (isRaisedDepthEntity(item.entity)) {
             raised.push({ kind: "entity", entity: item.entity, point: item.point, bounds: item.bounds, depth: raisedEntityDepth(item) });
         }
@@ -551,7 +546,7 @@ if (renderMapBeforeTileRenderer) {
                 if (item.kind === "wall") {
                     drawBuildingSegment(item.segment, project);
                 } else if (item.kind === "groundcover") {
-                    drawTile(TILE_IDS.groundCover, item.x, item.y, project);
+                    drawTile(item.tileId, item.x, item.y, project);
                 } else {
                     drawEntity(item.entity, item.point, project);
                     raisedEntities.push(item.entity);
