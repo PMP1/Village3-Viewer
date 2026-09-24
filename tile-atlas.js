@@ -245,6 +245,84 @@ function pathTextureRotation(x, y) {
     return (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0 & 3;
 }
 
+const GRASS_PATCH_METRES = 4;
+const GRASS_PATCH_TILE_IDS = Object.freeze([
+    TILE_IDS.grass,
+    TILE_IDS.grassAlt,
+    TILE_IDS.grassThird,
+    TILE_IDS.grassFourth
+]);
+
+function grassPatchAt(x, y, step) {
+    const patchSize = GRASS_PATCH_METRES * Math.max(1, step);
+    const patchX = Math.floor(x / patchSize);
+    const patchY = Math.floor(y / patchSize);
+    return Object.freeze({
+        x: patchX * patchSize,
+        y: patchY * patchSize,
+        size: patchSize,
+        tileId: GRASS_PATCH_TILE_IDS[coordinateHash(patchX, patchY) % GRASS_PATCH_TILE_IDS.length]
+    });
+}
+
+const GRASS_EDGE_SIDES = Object.freeze([
+    Object.freeze({ key: "north", dx: 0, dy: -1 }),
+    Object.freeze({ key: "east", dx: 1, dy: 0 }),
+    Object.freeze({ key: "south", dx: 0, dy: 1 }),
+    Object.freeze({ key: "west", dx: -1, dy: 0 })
+]);
+
+function exposedGrassEdges(cells, x, y) {
+    return GRASS_EDGE_SIDES
+        .filter(side => !cells.has(pathCellKey(x + side.dx, y + side.dy)))
+        .map(side => side.key);
+}
+
+function drawGrassEdgeDetails(cells, x, y, project) {
+    const edges = exposedGrassEdges(cells, x, y);
+    if (edges.length === 0) return;
+
+    const rect = tileScreenRect(x, y, 1, 1, project);
+    const scaleX = rect.width / SOURCE_TILE_PIXELS;
+    const scaleY = rect.height / SOURCE_TILE_PIXELS;
+    const colors = ["#4d6938", "#6f8744", "#91a254"];
+    context.save();
+    context.imageSmoothingEnabled = false;
+
+    for (const edge of edges) {
+        const edgeIndex = GRASS_EDGE_SIDES.findIndex(side => side.key === edge);
+        const seed = coordinateHash(x * 7 + edgeIndex * 31, y * 11 - edgeIndex * 17);
+        // Leave some stretches bare so the dirt remains the main path surface.
+        if (seed % 4 === 0) continue;
+
+        const clumpCount = 1 + ((seed >>> 3) % 2);
+        for (let clump = 0; clump < clumpCount; clump++) {
+            const clumpSeed = coordinateHash(x * 19 + clump * 13 + edgeIndex, y * 23 - clump * 7);
+            const along = 4 + (clumpSeed % 24);
+            const depth = 1 + ((clumpSeed >>> 5) % 3);
+            const horizontal = edge === "north" || edge === "south";
+            const baseX = horizontal ? along : edge === "west" ? depth : SOURCE_TILE_PIXELS - depth - 2;
+            const baseY = horizontal ? edge === "north" ? depth : SOURCE_TILE_PIXELS - depth - 2 : along;
+            const blades = [
+                { x: baseX, y: baseY, width: horizontal ? 1 : 3, height: horizontal ? 3 : 1 },
+                { x: baseX + (horizontal ? 2 : 0), y: baseY + (horizontal ? 1 : 2), width: 2, height: 2 },
+                { x: baseX + (horizontal ? 1 : 1), y: baseY - (horizontal ? 1 : 1), width: 1, height: 2 }
+            ];
+            for (let blade = 0; blade < blades.length; blade++) {
+                const mark = blades[blade];
+                context.fillStyle = colors[(clumpSeed + blade) % colors.length];
+                context.fillRect(
+                    rect.x + mark.x * scaleX,
+                    rect.y + mark.y * scaleY,
+                    Math.max(1, mark.width * scaleX),
+                    Math.max(1, mark.height * scaleY)
+                );
+            }
+        }
+    }
+    context.restore();
+}
+
 function drawPathAutotile(cells, x, y, project) {
     const image = tileImages.get(PATH_AUTOTILE_TILE_ID);
     if (!image || !tileReady.has(PATH_AUTOTILE_TILE_ID)) return false;
@@ -317,6 +395,13 @@ function drawEightDirectionMapFeatureGroundTiles(project) {
                 drawTile(TILE_IDS.dirt, x, y, project);
             }
         }
+        if (entity.subtype === "road") {
+            for (const key of cells) {
+                const { x, y } = parsePathCellKey(key);
+                if (x < visible.minX || x > visible.maxX || y < visible.minY || y > visible.maxY) continue;
+                drawGrassEdgeDetails(cells, x, y, project);
+            }
+        }
     }
 }
 
@@ -326,10 +411,13 @@ function drawEightDirectionWorldTiles(project) {
 
     const range = visibleTileRange(project);
     const step = groundTileStep(range);
-    for (let y = range.minY; y <= range.maxY; y += step) {
-        for (let x = range.minX; x <= range.maxX; x += step) {
-            const alternate = coordinateHash(x, y) % 5 === 0;
-            drawTile(alternate ? TILE_IDS.grassAlt : TILE_IDS.grass, x, y, project, step, step);
+    const patchSize = GRASS_PATCH_METRES * step;
+    const firstX = Math.floor(range.minX / patchSize) * patchSize;
+    const firstY = Math.floor(range.minY / patchSize) * patchSize;
+    for (let y = firstY; y <= range.maxY; y += patchSize) {
+        for (let x = firstX; x <= range.maxX; x += patchSize) {
+            const patch = grassPatchAt(x, y, step);
+            drawTile(patch.tileId, patch.x, patch.y, project, patch.size, patch.size);
         }
     }
 
@@ -492,6 +580,8 @@ window.VillageTileAtlas = Object.freeze({
     pathNeighbourMask,
     rotatePathMask,
     pathTextureRotation,
+    grassPatchAt,
+    exposedGrassEdges,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },
     get failed() { return tileFailed.size > 0; }
 });

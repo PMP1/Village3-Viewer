@@ -390,9 +390,9 @@ function groundcoverWallItems(walls, project) {
             segment.variant !== "plain") continue;
 
         const length = segment.length ?? 2;
-        // A broad, transparent 2m clump blends into the screen-near foundation.
-        // Its irregular canopy leaves gaps and keeps openings clear.
-        const outsideY = segment.side === "north" ? segment.y - 1 : segment.y;
+        // Pull the foliage a quarter metre back toward the wall so it hugs the foundation.
+        // The slight overlap lets the canopy soften the wall/ground seam without covering openings.
+        const outsideY = segment.side === "north" ? segment.y - 0.75 : segment.y - 0.25;
         const variantIndex = ((Math.floor(segment.x + segment.y) % variants.length) + variants.length) % variants.length;
         items.push({
             kind: "groundcover",
