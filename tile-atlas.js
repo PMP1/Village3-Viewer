@@ -271,6 +271,20 @@ function marketStonePatchAt(x, y) {
     });
 }
 
+function marketStoneOpacity(cells, x, y) {
+    for (let radius = 1; radius <= 2; radius++) {
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+                if (!cells.has(pathCellKey(x + dx, y + dy))) {
+                    return radius === 1 ? 0.3 : 0.65;
+                }
+            }
+        }
+    }
+    return 1;
+}
+
 function drawMarketStoneCell(cells, x, y, project) {
     const drewPath = drawPathAutotile(cells, x, y, project);
     if (!drewPath) drawTile(TILE_IDS.dirt, x, y, project);
@@ -281,6 +295,8 @@ function drawMarketStoneCell(cells, x, y, project) {
 
     const rect = tileScreenRect(x, y, 1, 1, project);
     context.imageSmoothingEnabled = false;
+    context.save();
+    context.globalAlpha = marketStoneOpacity(cells, x, y);
     context.drawImage(
         image,
         patch.sourceX,
@@ -292,6 +308,7 @@ function drawMarketStoneCell(cells, x, y, project) {
         rect.width,
         rect.height
     );
+    context.restore();
     return true;
 }
 
@@ -631,6 +648,7 @@ window.VillageTileAtlas = Object.freeze({
     rotatePathMask,
     pathTextureRotation,
     marketStonePatchAt,
+    marketStoneOpacity,
     grassPatchAt,
     exposedGrassEdges,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },

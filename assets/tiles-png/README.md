@@ -30,11 +30,12 @@ the rendered surface; routing, navigation, collision and the one-metre simulatio
 grid remain unchanged. The 32×32 sprite still renders at 32 pixels per metre.
 
 Market squares use the same dirt autotile atlas as roads for their continuous
-muddy substrate. Four 128×128 transparent PNG overlays add scattered worn
-flagstones across stable 4×4m areas at 32 pixels per metre. The stones have
-irregular silhouettes, muted limestone colours and narrow contact shadows; the
-mud remains visible between them and there are no opaque patch borders. Per-cell
-source regions are cropped from the chosen overlay so each market keeps
+muddy substrate. Four 128×128 transparent PNG overlays add close-laid flat
+cobbles across stable 4×4m areas at 32 pixels per metre. Cobble opacity fades
+from the market edge toward its centre, revealing a grass-to-mud-to-stone
+transition without changing the market footprint. Narrow irregular joints keep
+some mud visible between stones, and the overlays have no opaque patch borders.
+Per-cell source regions are cropped from the chosen overlay so each market keeps
 one-metre rendering alignment. Patch choice varies deterministically by world
 position. Ordinary road rendering and geometry remain unchanged.
 
