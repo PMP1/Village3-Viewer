@@ -29,12 +29,14 @@ between diagonal rows and keeps the visible dirt connected. This changes only
 the rendered surface; routing, navigation, collision and the one-metre simulation
 grid remain unchanged. The 32×32 sprite still renders at 32 pixels per metre.
 
-Market squares alone use four 128×128 PNG patches, each covering a stable 4×4m
-area at 32 pixels per metre. The artwork depicts larger worn flagstones embedded
-in dusty earth; dirt remains visible between stones. Per-cell source regions are
-cropped from the chosen patch so the market keeps one-metre rendering alignment
-without repeating a 32×32 image. Patch choice varies deterministically by
-world position. Ordinary roads continue to use the dirt autotile atlas unchanged.
+Market squares use the same dirt autotile atlas as roads for their continuous
+muddy substrate. Four 128×128 transparent PNG overlays add scattered worn
+flagstones across stable 4×4m areas at 32 pixels per metre. The stones have
+irregular silhouettes, muted limestone colours and narrow contact shadows; the
+mud remains visible between them and there are no opaque patch borders. Per-cell
+source regions are cropped from the chosen overlay so each market keeps
+one-metre rendering alignment. Patch choice varies deterministically by world
+position. Ordinary road rendering and geometry remain unchanged.
 
 The older `path_center*.png` and `path_[direction].png` files are legacy artwork
 from the composited-arm experiment and are no longer loaded by the viewer.

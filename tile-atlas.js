@@ -271,13 +271,13 @@ function marketStonePatchAt(x, y) {
     });
 }
 
-function drawMarketStoneCell(x, y, project) {
+function drawMarketStoneCell(cells, x, y, project) {
+    const drewPath = drawPathAutotile(cells, x, y, project);
+    if (!drewPath) drawTile(TILE_IDS.dirt, x, y, project);
+
     const patch = marketStonePatchAt(x, y);
     const image = tileImages.get(patch.tileId);
-    if (!image || !tileReady.has(patch.tileId)) {
-        drawTile(TILE_IDS.dirt, x, y, project);
-        return false;
-    }
+    if (!image || !tileReady.has(patch.tileId)) return drewPath;
 
     const rect = tileScreenRect(x, y, 1, 1, project);
     context.imageSmoothingEnabled = false;
@@ -442,7 +442,7 @@ function drawEightDirectionMapFeatureGroundTiles(project) {
             if (entity.subtype === "road") {
                 drawPathAutotile(cells, x, y, project);
             } else {
-                drawMarketStoneCell(x, y, project);
+                drawMarketStoneCell(cells, x, y, project);
             }
         }
         if (entity.subtype === "road") {
