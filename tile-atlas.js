@@ -1,6 +1,13 @@
 const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
 const PATH_AUTOTILE_TILE_ID = "terrain.path.autotiles";
 const PATH_AUTOTILE_COLUMNS = 16;
+const MARKET_STONE_PATCH_METRES = 4;
+const MARKET_STONE_TILE_IDS = Object.freeze([
+    "terrain.market-stone-1",
+    "terrain.market-stone-2",
+    "terrain.market-stone-3",
+    "terrain.market-stone-4"
+]);
 const PATH_NEIGHBOURS = Object.freeze([
     Object.freeze({ key: "n", dx: 0, dy: -1 }),
     Object.freeze({ key: "ne", dx: 1, dy: -1 }),
@@ -31,6 +38,10 @@ const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.groundCoverFourth, TILE_PNG_DIRECTORY + "wall_grass_4.png"],
     [TILE_IDS.dirt, TILE_PNG_DIRECTORY + "dirt.png"],
     [PATH_AUTOTILE_TILE_ID, TILE_PNG_DIRECTORY + "path_autotiles.png"],
+    ...MARKET_STONE_TILE_IDS.map((tileId, index) => [
+        tileId,
+        TILE_PNG_DIRECTORY + `market_stone_${index + 1}.png`
+    ]),
     [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],
     [FIELD_TILE_IDS.bare, TILE_PNG_DIRECTORY + "field_bare.png"],
     [FIELD_TILE_IDS.ploughed, TILE_PNG_DIRECTORY + "field_ploughed.png"],
@@ -245,6 +256,45 @@ function pathTextureRotation(x, y) {
     return (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0 & 3;
 }
 
+function marketStonePatchAt(x, y) {
+    const patchCellX = Math.floor(x / MARKET_STONE_PATCH_METRES);
+    const patchCellY = Math.floor(y / MARKET_STONE_PATCH_METRES);
+    const patchX = patchCellX * MARKET_STONE_PATCH_METRES;
+    const patchY = patchCellY * MARKET_STONE_PATCH_METRES;
+    return Object.freeze({
+        patchX,
+        patchY,
+        size: MARKET_STONE_PATCH_METRES,
+        tileId: MARKET_STONE_TILE_IDS[coordinateHash(patchCellX, patchCellY) % MARKET_STONE_TILE_IDS.length],
+        sourceX: (x - patchX) * SOURCE_TILE_PIXELS,
+        sourceY: (y - patchY) * SOURCE_TILE_PIXELS
+    });
+}
+
+function drawMarketStoneCell(x, y, project) {
+    const patch = marketStonePatchAt(x, y);
+    const image = tileImages.get(patch.tileId);
+    if (!image || !tileReady.has(patch.tileId)) {
+        drawTile(TILE_IDS.dirt, x, y, project);
+        return false;
+    }
+
+    const rect = tileScreenRect(x, y, 1, 1, project);
+    context.imageSmoothingEnabled = false;
+    context.drawImage(
+        image,
+        patch.sourceX,
+        patch.sourceY,
+        SOURCE_TILE_PIXELS,
+        SOURCE_TILE_PIXELS,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height
+    );
+    return true;
+}
+
 const GRASS_PATCH_METRES = 4;
 const GRASS_PATCH_TILE_IDS = Object.freeze([
     TILE_IDS.grass,
@@ -392,7 +442,7 @@ function drawEightDirectionMapFeatureGroundTiles(project) {
             if (entity.subtype === "road") {
                 drawPathAutotile(cells, x, y, project);
             } else {
-                drawTile(TILE_IDS.dirt, x, y, project);
+                drawMarketStoneCell(x, y, project);
             }
         }
         if (entity.subtype === "road") {
@@ -580,6 +630,7 @@ window.VillageTileAtlas = Object.freeze({
     pathNeighbourMask,
     rotatePathMask,
     pathTextureRotation,
+    marketStonePatchAt,
     grassPatchAt,
     exposedGrassEdges,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },

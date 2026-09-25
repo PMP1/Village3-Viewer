@@ -7,6 +7,7 @@ These are the editable terrain and fixture assets used by `viewer/tile-atlas.js`
 - `dirt.png` → `terrain.dirt`
 - `dirt_alt.png` → retained alternate full dirt artwork
 - `path_autotiles.png` → 16×16 atlas of 256 finished 32×32 path sprites, indexed by the eight neighbouring path cells
+- `market_stone_1.png` through `market_stone_4.png` → four varied market-square stone-in-packed-earth patches
 - `wood_floor.png` → `building.floor.wood`
 - `hearth.png` → `fixture.hearth`
 - `bed.png` → `fixture.bed`
@@ -27,7 +28,13 @@ rendered metre cells across each unchanged road width, which fills the gaps
 between diagonal rows and keeps the visible dirt connected. This changes only
 the rendered surface; routing, navigation, collision and the one-metre simulation
 grid remain unchanged. The 32×32 sprite still renders at 32 pixels per metre.
-Market squares continue to use full dirt tiles.
+
+Market squares alone use four 128×128 PNG patches, each covering a stable 4×4m
+area at 32 pixels per metre. The artwork depicts larger worn flagstones embedded
+in dusty earth; dirt remains visible between stones. Per-cell source regions are
+cropped from the chosen patch so the market keeps one-metre rendering alignment
+without repeating a 32×32 image. Patch choice varies deterministically by
+world position. Ordinary roads continue to use the dirt autotile atlas unchanged.
 
 The older `path_center*.png` and `path_[direction].png` files are legacy artwork
 from the composited-arm experiment and are no longer loaded by the viewer.
