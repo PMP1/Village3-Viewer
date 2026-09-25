@@ -1,13 +1,13 @@
 const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
 const PATH_AUTOTILE_TILE_ID = "terrain.path.autotiles";
 const PATH_AUTOTILE_COLUMNS = 16;
-const MARKET_STONE_PATCH_METRES = 4;
-const MARKET_STONE_TILE_IDS = Object.freeze([
-    "terrain.market-stone-1",
-    "terrain.market-stone-2",
-    "terrain.market-stone-3",
-    "terrain.market-stone-4"
+const MARKET_COBBLE_ATLAS_ID = "terrain.market-cobble-autotiles";
+const MARKET_COBBLE_VARIANT_IDS = Object.freeze([
+    MARKET_COBBLE_ATLAS_ID,
+    "terrain.market-cobble-fill-2",
+    "terrain.market-cobble-fill-3"
 ]);
+const MARKET_COBBLE_SOURCE_PIXELS = 128;
 const PATH_NEIGHBOURS = Object.freeze([
     Object.freeze({ key: "n", dx: 0, dy: -1 }),
     Object.freeze({ key: "ne", dx: 1, dy: -1 }),
@@ -38,10 +38,9 @@ const TILE_IMAGE_PATHS = new Map([
     [TILE_IDS.groundCoverFourth, TILE_PNG_DIRECTORY + "wall_grass_4.png"],
     [TILE_IDS.dirt, TILE_PNG_DIRECTORY + "dirt.png"],
     [PATH_AUTOTILE_TILE_ID, TILE_PNG_DIRECTORY + "path_autotiles.png"],
-    ...MARKET_STONE_TILE_IDS.map((tileId, index) => [
-        tileId,
-        TILE_PNG_DIRECTORY + `market_stone_${index + 1}.png`
-    ]),
+    [MARKET_COBBLE_ATLAS_ID, TILE_PNG_DIRECTORY + "market_cobble_autotiles.png"],
+    [MARKET_COBBLE_VARIANT_IDS[1], TILE_PNG_DIRECTORY + "market_cobble_fill_2.png"],
+    [MARKET_COBBLE_VARIANT_IDS[2], TILE_PNG_DIRECTORY + "market_cobble_fill_3.png"],
     [TILE_IDS.woodFloor, TILE_PNG_DIRECTORY + "wood_floor.png"],
     [FIELD_TILE_IDS.bare, TILE_PNG_DIRECTORY + "field_bare.png"],
     [FIELD_TILE_IDS.ploughed, TILE_PNG_DIRECTORY + "field_ploughed.png"],
@@ -256,59 +255,54 @@ function pathTextureRotation(x, y) {
     return (Math.imul(x, 73856093) ^ Math.imul(y, 19349663)) >>> 0 & 3;
 }
 
-function marketStonePatchAt(x, y) {
-    const patchCellX = Math.floor(x / MARKET_STONE_PATCH_METRES);
-    const patchCellY = Math.floor(y / MARKET_STONE_PATCH_METRES);
-    const patchX = patchCellX * MARKET_STONE_PATCH_METRES;
-    const patchY = patchCellY * MARKET_STONE_PATCH_METRES;
+function marketCobbleSliceAt(cells, x, y) {
+    const north = !cells.has(pathCellKey(x, y - 1));
+    const east = !cells.has(pathCellKey(x + 1, y));
+    const south = !cells.has(pathCellKey(x, y + 1));
+    const west = !cells.has(pathCellKey(x - 1, y));
+    const column = west ? 0 : east ? 2 : 1;
+    const row = north ? 0 : south ? 2 : 1;
+
+    if (row === 1 && column === 1) {
+        const variant = coordinateHash(x, y) % MARKET_COBBLE_VARIANT_IDS.length;
+        return Object.freeze({
+            tileId: MARKET_COBBLE_VARIANT_IDS[variant],
+            sourceX: variant === 0 ? MARKET_COBBLE_SOURCE_PIXELS : 0,
+            sourceY: variant === 0 ? MARKET_COBBLE_SOURCE_PIXELS : 0,
+            variant
+        });
+    }
+
     return Object.freeze({
-        patchX,
-        patchY,
-        size: MARKET_STONE_PATCH_METRES,
-        tileId: MARKET_STONE_TILE_IDS[coordinateHash(patchCellX, patchCellY) % MARKET_STONE_TILE_IDS.length],
-        sourceX: (x - patchX) * SOURCE_TILE_PIXELS,
-        sourceY: (y - patchY) * SOURCE_TILE_PIXELS
+        tileId: MARKET_COBBLE_ATLAS_ID,
+        sourceX: column * MARKET_COBBLE_SOURCE_PIXELS,
+        sourceY: row * MARKET_COBBLE_SOURCE_PIXELS,
+        row,
+        column
     });
 }
 
-function marketStoneOpacity(cells, x, y) {
-    for (let radius = 1; radius <= 2; radius++) {
-        for (let dy = -radius; dy <= radius; dy++) {
-            for (let dx = -radius; dx <= radius; dx++) {
-                if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
-                if (!cells.has(pathCellKey(x + dx, y + dy))) {
-                    return radius === 1 ? 0.3 : 0.65;
-                }
-            }
-        }
-    }
-    return 1;
-}
-
-function drawMarketStoneCell(cells, x, y, project) {
+function drawMarketCobbleCell(cells, x, y, project) {
     const drewPath = drawPathAutotile(cells, x, y, project);
     if (!drewPath) drawTile(TILE_IDS.dirt, x, y, project);
 
-    const patch = marketStonePatchAt(x, y);
-    const image = tileImages.get(patch.tileId);
-    if (!image || !tileReady.has(patch.tileId)) return drewPath;
+    const slice = marketCobbleSliceAt(cells, x, y);
+    const image = tileImages.get(slice.tileId);
+    if (!image || !tileReady.has(slice.tileId)) return drewPath;
 
     const rect = tileScreenRect(x, y, 1, 1, project);
     context.imageSmoothingEnabled = false;
-    context.save();
-    context.globalAlpha = marketStoneOpacity(cells, x, y);
     context.drawImage(
         image,
-        patch.sourceX,
-        patch.sourceY,
-        SOURCE_TILE_PIXELS,
-        SOURCE_TILE_PIXELS,
+        slice.sourceX,
+        slice.sourceY,
+        MARKET_COBBLE_SOURCE_PIXELS,
+        MARKET_COBBLE_SOURCE_PIXELS,
         rect.x,
         rect.y,
         rect.width,
         rect.height
     );
-    context.restore();
     return true;
 }
 
@@ -459,7 +453,7 @@ function drawEightDirectionMapFeatureGroundTiles(project) {
             if (entity.subtype === "road") {
                 drawPathAutotile(cells, x, y, project);
             } else {
-                drawMarketStoneCell(cells, x, y, project);
+                drawMarketCobbleCell(cells, x, y, project);
             }
         }
         if (entity.subtype === "road") {
@@ -647,8 +641,7 @@ window.VillageTileAtlas = Object.freeze({
     pathNeighbourMask,
     rotatePathMask,
     pathTextureRotation,
-    marketStonePatchAt,
-    marketStoneOpacity,
+    marketCobbleSliceAt,
     grassPatchAt,
     exposedGrassEdges,
     get ready() { return tileReady.size === TILE_IMAGE_PATHS.size; },

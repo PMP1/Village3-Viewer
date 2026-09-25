@@ -7,7 +7,8 @@ These are the editable terrain and fixture assets used by `viewer/tile-atlas.js`
 - `dirt.png` → `terrain.dirt`
 - `dirt_alt.png` → retained alternate full dirt artwork
 - `path_autotiles.png` → 16×16 atlas of 256 finished 32×32 path sprites, indexed by the eight neighbouring path cells
-- `market_stone_1.png` through `market_stone_4.png` → four varied market-square stone-in-packed-earth patches
+- `market_cobble_autotiles.png` → 3×3 market overlay atlas with four corners, four edges and a solid infill
+- `market_cobble_fill_2.png` and `market_cobble_fill_3.png` → two varied infill overlays
 - `wood_floor.png` → `building.floor.wood`
 - `hearth.png` → `fixture.hearth`
 - `bed.png` → `fixture.bed`
@@ -29,15 +30,13 @@ between diagonal rows and keeps the visible dirt connected. This changes only
 the rendered surface; routing, navigation, collision and the one-metre simulation
 grid remain unchanged. The 32×32 sprite still renders at 32 pixels per metre.
 
-Market squares use the same dirt autotile atlas as roads for their continuous
-muddy substrate. Four 128×128 transparent PNG overlays add close-laid flat
-cobbles across stable 4×4m areas at 32 pixels per metre. Cobble opacity fades
-from the market edge toward its centre, revealing a grass-to-mud-to-stone
-transition without changing the market footprint. Narrow irregular joints keep
-some mud visible between stones, and the overlays have no opaque patch borders.
-Per-cell source regions are cropped from the chosen overlay so each market keeps
-one-metre rendering alignment. Patch choice varies deterministically by world
-position. Ordinary road rendering and geometry remain unchanged.
+Market squares draw the existing dirt autotile first, then a transparent
+high-resolution cobble overlay. The 384×384 atlas contains nine 128×128 sprites
+that each render to one 32×32 metre cell: four corners, four edges and one
+solid infill. Loose flat stones sit over the same warm dirt, with transparent
+packed-earth joints and a soft fade along exposed edges. Two additional 128×128
+infill variants are chosen deterministically by world cell to reduce repetition.
+The market footprint and ordinary road rendering remain unchanged.
 
 The older `path_center*.png` and `path_[direction].png` files are legacy artwork
 from the composited-arm experiment and are no longer loaded by the viewer.
