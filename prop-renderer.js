@@ -1,10 +1,10 @@
 (() => {
     const PROP_ASSET_PATHS = Object.freeze({
-        hearth: "./assets/tiles-png/hearth.png",
-        bed: "./assets/tiles-png/bed.png",
-        "dining-table": "./assets/tiles-png/dining_table.png",
+        hearth: "./assets/props/home-hearth.png",
+        bed: "./assets/props/home-bed.png",
+        "dining-table": "./assets/props/home-dining-table.png",
         "service-counter": "./assets/tiles-png/service_counter.png",
-        "dining-seat": "./assets/props/chair.svg",
+        "dining-seat": "./assets/props/home-chair.png",
         cart: "./assets/props/cart.svg"
     });
 
@@ -12,11 +12,11 @@
     const CARDINAL_DIRECTIONS = new Set(Object.keys(DIRECTION_INDEX));
 
     const PROP_DEFINITIONS = Object.freeze({
-        hearth: Object.freeze({ visualWidth: 1.05, visualHeight: 1.20, baseFacing: "south", rotateWithFacing: false }),
-        bed: Object.freeze({ visualWidth: 1.15, visualHeight: 1.35, baseFacing: "east", rotateWithFacing: false }),
-        "dining-table": Object.freeze({ visualWidth: 1.15, visualHeight: 1.00, baseFacing: "south", rotateWithFacing: false }),
+        hearth: Object.freeze({ visualWidth: 1.10, visualHeight: 1.50, baseFacing: "south", rotateWithFacing: false }),
+        bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, baseFacing: "east", rotateWithFacing: false }),
+        "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 1.55, visualHeight: 1.10, baseFacing: "south", rotateWithFacing: false }),
-        "dining-seat": Object.freeze({ visualWidth: 0.78, visualHeight: 0.78, baseFacing: "south", rotateWithFacing: true }),
+        "dining-seat": Object.freeze({ visualWidth: 0.80, visualHeight: 1.30, baseFacing: "south", rotateWithFacing: true }),
         cart: Object.freeze({ visualWidth: 2.00, visualHeight: 1.55, baseFacing: "east", rotateWithFacing: true })
     });
 

@@ -4083,6 +4083,68 @@
     }
   };
 
+  // src/world/DiningTable.ts
+  function diningTableSeatId(tableId, index) {
+    if (!Number.isInteger(index) || index < 0) {
+      throw new Error("Dining table seat index must be a non-negative integer.");
+    }
+    return `${tableId}-seat-${index + 1}`;
+  }
+  function tableObstructionNorthOfSeat(position) {
+    return {
+      origin: {
+        x: Math.floor(position.x),
+        y: Math.floor(position.y) - 1
+      },
+      width: 1,
+      height: 1
+    };
+  }
+  function createDiningTable(options) {
+    if (options.seatPositions.length === 0) {
+      throw new Error("Dining table requires at least one seat action point.");
+    }
+    for (const [index, seat] of options.seatPositions.entries()) {
+      if (isPositionInFixtureObstruction(seat, options.physicalObstruction)) {
+        throw new Error(`Dining table ${options.id} seat ${index + 1} cannot be inside the table body.`);
+      }
+      if (!isSeatAdjacentToTable(seat, options.physicalObstruction)) {
+        throw new Error(`Dining table ${options.id} seat ${index + 1} must be cardinally adjacent to the table body.`);
+      }
+    }
+    return {
+      id: options.id,
+      kind: "other",
+      position: {
+        x: options.physicalObstruction.origin.x + options.physicalObstruction.width / 2,
+        y: options.physicalObstruction.origin.y + options.physicalObstruction.height / 2
+      },
+      physicalObstruction: {
+        origin: { ...options.physicalObstruction.origin },
+        width: options.physicalObstruction.width,
+        height: options.physicalObstruction.height
+      },
+      fixtures: options.seatPositions.map(
+        (position, index) => createUsableResource({
+          id: diningTableSeatId(options.id, index),
+          type: "dining-seat",
+          placeId: options.placeId,
+          ...options.roomId ? { roomId: options.roomId } : {},
+          position: { ...position }
+        })
+      )
+    };
+  }
+  function isSeatAdjacentToTable(position, obstruction) {
+    const seatCell = {
+      x: Math.floor(position.x),
+      y: Math.floor(position.y)
+    };
+    return fixtureObstructionCells(obstruction).some(
+      (cell) => Math.abs(cell.x - seatCell.x) + Math.abs(cell.y - seatCell.y) === 1
+    );
+  }
+
   // src/world/House.ts
   var DEFAULT_HOUSE_WIDTH_METRES = 4;
   var DEFAULT_HOUSE_HEIGHT_METRES = 4;
@@ -4094,6 +4156,32 @@
     const doorSideLength = options.frontDoorSide === "north" || options.frontDoorSide === "south" ? DEFAULT_HOUSE_WIDTH_METRES : DEFAULT_HOUSE_HEIGHT_METRES;
     const frontDoorOffset = Math.floor(doorSideLength / 2);
     const bedActionPoint = { ...options.position };
+    const bed = createUsableResource({
+      id: `${options.id}-bed`,
+      type: "bed",
+      placeId: options.id,
+      position: bedActionPoint,
+      physicalObstruction: bedObstructionWestOfActionPoint(bedActionPoint)
+    });
+    const hearthCell = { x: origin.x + 3, y: origin.y };
+    const hearth = createFacility({
+      id: `${options.id}-hearth`,
+      type: "hearth",
+      placeId: options.id,
+      position: { x: hearthCell.x + 0.5, y: hearthCell.y + 0.5 },
+      actionPointPosition: { x: hearthCell.x + 0.5, y: hearthCell.y + 1.5 },
+      physicalObstruction: { origin: hearthCell, width: 1, height: 1 }
+    });
+    const tableCell = { x: origin.x, y: origin.y };
+    const diningTable = createDiningTable({
+      id: `${options.id}-dining-table`,
+      placeId: options.id,
+      physicalObstruction: { origin: tableCell, width: 1, height: 1 },
+      seatPositions: [
+        { x: tableCell.x + 1.5, y: tableCell.y + 0.5 },
+        { x: tableCell.x + 0.5, y: tableCell.y + 1.5 }
+      ]
+    });
     return {
       id: options.id,
       kind: "building",
@@ -4112,13 +4200,7 @@
           barredFromInside: true
         }]
       },
-      fixtures: [createUsableResource({
-        id: `${options.id}-bed`,
-        type: "bed",
-        placeId: options.id,
-        position: bedActionPoint,
-        physicalObstruction: bedObstructionWestOfActionPoint(bedActionPoint)
-      })]
+      fixtures: [bed, hearth, diningTable]
     };
   }
 
@@ -18761,68 +18843,6 @@
       ...room4(id, placeId, origin, 3, 3, "private"),
       rental: { dailyRate }
     };
-  }
-
-  // src/world/DiningTable.ts
-  function diningTableSeatId(tableId, index) {
-    if (!Number.isInteger(index) || index < 0) {
-      throw new Error("Dining table seat index must be a non-negative integer.");
-    }
-    return `${tableId}-seat-${index + 1}`;
-  }
-  function tableObstructionNorthOfSeat(position) {
-    return {
-      origin: {
-        x: Math.floor(position.x),
-        y: Math.floor(position.y) - 1
-      },
-      width: 1,
-      height: 1
-    };
-  }
-  function createDiningTable(options) {
-    if (options.seatPositions.length === 0) {
-      throw new Error("Dining table requires at least one seat action point.");
-    }
-    for (const [index, seat] of options.seatPositions.entries()) {
-      if (isPositionInFixtureObstruction(seat, options.physicalObstruction)) {
-        throw new Error(`Dining table ${options.id} seat ${index + 1} cannot be inside the table body.`);
-      }
-      if (!isSeatAdjacentToTable(seat, options.physicalObstruction)) {
-        throw new Error(`Dining table ${options.id} seat ${index + 1} must be cardinally adjacent to the table body.`);
-      }
-    }
-    return {
-      id: options.id,
-      kind: "other",
-      position: {
-        x: options.physicalObstruction.origin.x + options.physicalObstruction.width / 2,
-        y: options.physicalObstruction.origin.y + options.physicalObstruction.height / 2
-      },
-      physicalObstruction: {
-        origin: { ...options.physicalObstruction.origin },
-        width: options.physicalObstruction.width,
-        height: options.physicalObstruction.height
-      },
-      fixtures: options.seatPositions.map(
-        (position, index) => createUsableResource({
-          id: diningTableSeatId(options.id, index),
-          type: "dining-seat",
-          placeId: options.placeId,
-          ...options.roomId ? { roomId: options.roomId } : {},
-          position: { ...position }
-        })
-      )
-    };
-  }
-  function isSeatAdjacentToTable(position, obstruction) {
-    const seatCell = {
-      x: Math.floor(position.x),
-      y: Math.floor(position.y)
-    };
-    return fixtureObstructionCells(obstruction).some(
-      (cell) => Math.abs(cell.x - seatCell.x) + Math.abs(cell.y - seatCell.y) === 1
-    );
   }
 
   // src/scenarios/DefaultScenario.ts
