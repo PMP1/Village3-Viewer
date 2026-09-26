@@ -4,7 +4,7 @@
         bed: "./assets/props/home-bed.png",
         "dining-table": "./assets/props/home-dining-table.png",
         "service-counter": "./assets/tiles-png/service_counter.png",
-        "dining-seat": "./assets/props/home-chair.png",
+        "dining-seat": "./assets/props/home-stool.svg",
         cart: "./assets/props/cart.svg"
     });
 
@@ -16,7 +16,7 @@
         bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, baseFacing: "east", rotateWithFacing: false }),
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 1.55, visualHeight: 1.10, baseFacing: "south", rotateWithFacing: false }),
-        "dining-seat": Object.freeze({ visualWidth: 0.55, visualHeight: 0.90, baseFacing: "south", rotateWithFacing: true }),
+        "dining-seat": Object.freeze({ visualWidth: 0.72, visualHeight: 0.72, baseFacing: "south", rotateWithFacing: false }),
         cart: Object.freeze({ visualWidth: 2.00, visualHeight: 1.55, baseFacing: "east", rotateWithFacing: true })
     });
 
@@ -72,7 +72,7 @@
         if (typeof explicit === "string" && CARDINAL_DIRECTIONS.has(explicit)) return explicit;
 
         const type = propType(entity);
-        if (type === "dining-seat") return diningSeatFacing(entity) ?? "south";
+        if (type === "dining-seat") return "south";
         if (type === "cart") return "east";
         if (type === "service-counter") {
             const geometry = entity.geometry;

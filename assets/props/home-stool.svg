@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" shape-rendering="crispEdges">
+  <path d="M12 48 20 44 47 46 55 51 48 57 22 58 11 53Z" fill="#291b12" opacity=".45"/>
+  <path d="M13 25 21 27 20 49 13 47Z" fill="#4b2d19"/>
+  <path d="M16 26 21 28 20 47 16 46Z" fill="#9a6232"/>
+  <path d="M44 27 51 24 53 45 46 48Z" fill="#4b2d19"/>
+  <path d="M47 27 50 26 52 44 48 46Z" fill="#a66b36"/>
+  <path d="M19 34 26 35 27 54 20 56Z" fill="#4b2d19"/>
+  <path d="M22 36 25 36 25 52 22 53Z" fill="#a66b36"/>
+  <path d="M40 35 47 33 48 52 42 55Z" fill="#4b2d19"/>
+  <path d="M43 36 45 35 46 51 43 52Z" fill="#a66b36"/>
+  <path d="M10 19 20 11 45 12 55 19 48 31 24 34 10 27Z" fill="#382317"/>
+  <path d="M14 19 22 14 43 15 51 20 46 27 25 30 14 25Z" fill="#9a6232"/>
+  <path d="M15 20 23 15 42 16 48 20 44 22 23 20Z" fill="#bd8141"/>
+  <path d="M14 24 24 28 45 25 48 22 46 28 25 32 14 27Z" fill="#714523"/>
+  <path d="M19 17 39 18" stroke="#d49a54" stroke-width="2"/>
+  <path d="M17 22 23 24M29 25 40 24" stroke="#754821" stroke-width="2"/>
+  <path d="M11 19 20 11 45 12 55 19" fill="none" stroke="#2b1b11" stroke-width="2"/>
+</svg>
