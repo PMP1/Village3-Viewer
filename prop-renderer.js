@@ -12,8 +12,8 @@
     const CARDINAL_DIRECTIONS = new Set(Object.keys(DIRECTION_INDEX));
 
     const PROP_DEFINITIONS = Object.freeze({
-        hearth: Object.freeze({ visualWidth: 1.10, visualHeight: 1.50, baseFacing: "south", rotateWithFacing: false }),
-        bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, baseFacing: "east", rotateWithFacing: false }),
+        hearth: Object.freeze({ visualWidth: 1.10, visualHeight: 1.50, visualOffsetY: -1.00, baseFacing: "south", rotateWithFacing: false }),
+        bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, visualOffsetY: -0.30, baseFacing: "east", rotateWithFacing: false }),
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 1.55, visualHeight: 1.10, baseFacing: "south", rotateWithFacing: false }),
         "dining-seat": Object.freeze({ visualWidth: 0.72, visualHeight: 0.72, baseFacing: "south", rotateWithFacing: false }),
@@ -127,7 +127,9 @@
         const height = turns % 2 === 0 ? baseHeight : baseWidth;
         const physical = physicalScreenBounds(entity, project);
         const centreX = (physical.left + physical.right) / 2;
-        const groundY = physical.bottom;
+        // These wall-mounted props sit visually behind their floor-cell anchor. Keep
+        // their dimensions unchanged and move the complete sprite toward the back wall.
+        const groundY = physical.bottom + (definition.visualOffsetY ?? 0) * project.scale;
 
         return {
             left: centreX - width / 2,
