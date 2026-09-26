@@ -361,7 +361,7 @@ function isRaisedDepthEntity(entity) {
 
 function raisedEntityDepth(item) {
     if (item.entity.category === "character") return item.point.y;
-    return item.bounds?.bottom ?? item.point.y;
+    return item.bounds?.depthAnchorY ?? item.bounds?.bottom ?? item.point.y;
 }
 
 function wallSegmentDepth(segment, project) {

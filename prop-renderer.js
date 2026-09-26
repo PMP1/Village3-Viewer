@@ -136,6 +136,8 @@
             right: centreX + width / 2,
             top: groundY - height,
             bottom: groundY,
+            // Sort by the actual floor contact, not the back-wall visual offset.
+            depthAnchorY: physical.bottom,
             width,
             height,
             baseWidth,
