@@ -481,9 +481,9 @@
       barProviderPosition: { x: 103, y: 84 },
       barCustomerPosition: { x: 102, y: 84 },
       seatPositions: [
-        { x: 101, y: 82 },
-        { x: 105, y: 82 },
-        { x: 101, y: 84 }
+        { x: 101.5, y: 82.5 },
+        { x: 105.5, y: 82.5 },
+        { x: 101.5, y: 84.5 }
       ]
     },
     daveCartPosition: { x: 110, y: 103 },
@@ -18694,6 +18694,10 @@
     const origin = tavernOrigin(tavernPosition);
     return { x: origin.x + 7, y: origin.y + 8 };
   }
+  function tavernKitchenHearthWorkPosition(tavernPosition) {
+    const origin = tavernOrigin(tavernPosition);
+    return { x: origin.x + 5.5, y: origin.y + 4.5 };
+  }
   function createTavern(options) {
     const origin = tavernOrigin(options.position);
     const roomDailyRate = options.roomDailyRate ?? DEFAULT_TAVERN_ROOM_DAILY_RATE;
@@ -18753,6 +18757,8 @@
       });
     });
     const kitchenPosition = tavernKitchenWorkPosition(options.position);
+    const kitchenHearthWorkPosition = tavernKitchenHearthWorkPosition(options.position);
+    const kitchenHearthCell = { x: origin.x + 5, y: origin.y + 3 };
     const kitchenId = tavernKitchenId(options.id);
     const kitchenFixtures = [
       {
@@ -18767,10 +18773,10 @@
         type: "hearth",
         placeId: options.id,
         roomId: ids.common,
-        position: kitchenPosition,
-        actionPointPosition: kitchenPosition,
+        position: { x: kitchenHearthCell.x + 0.5, y: kitchenHearthCell.y + 0.5 },
+        actionPointPosition: kitchenHearthWorkPosition,
         physicalObstruction: {
-          origin: { x: origin.x + 8, y: origin.y + 8 },
+          origin: kitchenHearthCell,
           width: 1,
           height: 1
         }
@@ -18957,6 +18963,7 @@
     }
     const tavernKitchen = tavernKitchenId(villageTavern.id);
     const tavernKitchenPosition = tavernKitchenWorkPosition(tavernPosition);
+    const tavernHearthWorkPosition = tavernKitchenHearthWorkPosition(tavernPosition);
     const tavernHearthActionPoint = facilityActionPointId(tavernKitchenHearthId(villageTavern.id));
     const tavernBar = createServicePoint({
       id: "village-tavern-bar",
@@ -19086,7 +19093,7 @@
       name: "Cook Vegetable Stew",
       recipeId: "vegetable-stew",
       workActionPointId: tavernHearthActionPoint,
-      workPosition: { ...tavernKitchenPosition },
+      workPosition: { ...tavernHearthWorkPosition },
       outputContainerId: tavernKitchen,
       outputType: "food",
       outputFoodKind: "prepared-meal",
@@ -19955,6 +19962,7 @@
   function configureDefaultTavernIngredientProcurement(world2, layout, emma, dave) {
     const kitchenId = tavernKitchenId("village-tavern");
     const kitchenPosition = tavernKitchenWorkPosition(layout.tavern.position);
+    const hearthWorkPosition = tavernKitchenHearthWorkPosition(layout.tavern.position);
     const tavernHearthActionPoint = facilityActionPointId(tavernKitchenHearthId("village-tavern"));
     const cartCustomerPosition = {
       x: (layout.daveCartPosition.x + layout.daveSellingPosition.x) / 2,
@@ -19981,7 +19989,7 @@
       name: "Cook Meat And Vegetable Stew",
       recipeId: DEFAULT_MEAT_STEW_DISH_ID,
       workActionPointId: tavernHearthActionPoint,
-      workPosition: { ...kitchenPosition },
+      workPosition: { ...hearthWorkPosition },
       outputContainerId: kitchenId,
       outputType: "food",
       outputFoodKind: "prepared-meal",
