@@ -90,16 +90,22 @@ selectAtScreenPoint = function selectAtScreenPointWithoutGroundFeatures(x, y) {
     }
 };
 
-function isUnlabelledFurniture(entity) {
+function isUnlabelledGraphicEntity(entity) {
     const fixtureType = entity.properties?.fixtureType;
-    return fixtureType === "dining-table"
+    const resourceType = entity.properties?.resourceType;
+    return entity.category === "room"
+        || entity.subtype === "building"
+        || entity.subtype === "cart"
+        || fixtureType === "dining-table"
         || fixtureType === "service-counter"
-        || entity.properties?.resourceType === "dining-seat";
+        || entity.properties?.facilityType === "hearth"
+        || resourceType === "bed"
+        || resourceType === "dining-seat";
 }
 
 const baseMapFeatureShouldDrawLabel = shouldDrawLabel;
-shouldDrawLabel = function shouldDrawLabelWithoutFurnitureNoise(entity, project) {
-    if (isUnlabelledFurniture(entity)) return false;
+shouldDrawLabel = function shouldDrawLabelWithoutGraphicNoise(entity, project) {
+    if (isUnlabelledGraphicEntity(entity)) return false;
     return baseMapFeatureShouldDrawLabel(entity, project);
 };
 

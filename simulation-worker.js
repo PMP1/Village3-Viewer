@@ -4163,7 +4163,7 @@
       position: bedActionPoint,
       physicalObstruction: bedObstructionWestOfActionPoint(bedActionPoint)
     });
-    const hearthCell = { x: origin.x + 3, y: origin.y };
+    const hearthCell = { x: origin.x + 1, y: origin.y };
     const hearth = createFacility({
       id: `${options.id}-hearth`,
       type: "hearth",
@@ -4172,7 +4172,7 @@
       actionPointPosition: { x: hearthCell.x + 0.5, y: hearthCell.y + 1.5 },
       physicalObstruction: { origin: hearthCell, width: 1, height: 1 }
     });
-    const tableCell = { x: origin.x, y: origin.y };
+    const tableCell = { x: origin.x + 2, y: origin.y + 1 };
     const diningTable = createDiningTable({
       id: `${options.id}-dining-table`,
       placeId: options.id,

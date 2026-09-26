@@ -16,7 +16,7 @@
         bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, baseFacing: "east", rotateWithFacing: false }),
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 1.55, visualHeight: 1.10, baseFacing: "south", rotateWithFacing: false }),
-        "dining-seat": Object.freeze({ visualWidth: 0.80, visualHeight: 1.30, baseFacing: "south", rotateWithFacing: true }),
+        "dining-seat": Object.freeze({ visualWidth: 0.55, visualHeight: 0.90, baseFacing: "south", rotateWithFacing: true }),
         cart: Object.freeze({ visualWidth: 2.00, visualHeight: 1.55, baseFacing: "east", rotateWithFacing: true })
     });
 
