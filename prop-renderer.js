@@ -12,8 +12,8 @@
     const CARDINAL_DIRECTIONS = new Set(Object.keys(DIRECTION_INDEX));
 
     const PROP_DEFINITIONS = Object.freeze({
-        hearth: Object.freeze({ visualWidth: 1.10, visualHeight: 1.50, visualOffsetY: 0.00, baseFacing: "south", rotateWithFacing: false }),
-        bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, visualOffsetY: -0.90, baseFacing: "east", rotateWithFacing: false }),
+        hearth: Object.freeze({ visualWidth: 1.10, visualHeight: 1.50, visualOffsetY: -0.40, baseFacing: "south", rotateWithFacing: false }),
+        bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, visualOffsetY: -0.70, baseFacing: "east", rotateWithFacing: false }),
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 1.55, visualHeight: 1.10, baseFacing: "south", rotateWithFacing: false }),
         "dining-seat": Object.freeze({ visualWidth: 0.72, visualHeight: 0.72, baseFacing: "south", rotateWithFacing: false }),
