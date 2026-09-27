@@ -8,7 +8,9 @@ const EXTERIOR_FRONT_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_2m.pn
 const EXTERIOR_FRONT_WINDOW_WALL_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_window_2m.png";
 const EXTERIOR_FRONT_TIMBER_POST_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_join_timber.png";
 const EXTERIOR_FRONT_STONE_CORNER_PATH = BUILDING_WALL_PNG_DIRECTORY + "wall_front_corner_stone.png";
-const EXTERIOR_FRONT_DOOR_PATH = "./assets/building-walls-front.svg";
+const EXTERIOR_FRONT_DOOR_PATH = BUILDING_WALL_PNG_DIRECTORY + "doors_front_2x.png";
+const BUILDING_HORIZONTAL_DOOR_PATH = BUILDING_WALL_PNG_DIRECTORY + "doors_horizontal_2x.png";
+const BUILDING_VERTICAL_DOOR_PATH = BUILDING_WALL_PNG_DIRECTORY + "doors_vertical_2x.png";
 const BUILDING_SPRITES = Object.freeze({
     "building.exterior.door.closed.horizontal": {"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":48,"sourceWidth":32,"sourceX":384,"sourceY":0},
     "building.exterior.door.closed.vertical": {"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":64},
@@ -59,6 +61,11 @@ const FRONT_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"d
 const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"sourceX":64});
 const FRONT_DOOR_CLOSED = Object.freeze({...FRONT_DOORWAY,"sourceX":128});
 const FRONT_DOOR_LOCKED = Object.freeze({...FRONT_DOORWAY,"sourceX":192});
+const PNG_HORIZONTAL_DOOR = Object.freeze({"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":96,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_DOOR = Object.freeze({"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const horizontalDoorSprite = (state, layer) => Object.freeze({...PNG_HORIZONTAL_DOOR,"sourceX":state * 64,"sourceY":layer * 96});
+const verticalDoorSprite = (state, layer) => Object.freeze({...PNG_VERTICAL_DOOR,"sourceX":(layer * 4 + state) * 64});
+
 // Side walls remain one-metre logical sections. Their 96 px canvas carries the
 // 64 px rise plus the 32 px descending run, independently of horizontal bays.
 const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
@@ -72,10 +79,6 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.front.wall2.window": PNG_EXTERIOR_FRONT_WALL_2,
     "building.exterior.front.wall1.left": PNG_EXTERIOR_FRONT_WALL_1,
     "building.exterior.front.wall1.right": PNG_EXTERIOR_FRONT_WALL_1,
-    "building.exterior.front.doorway.horizontal": FRONT_DOORWAY,
-    "building.exterior.front.door.open.horizontal": FRONT_DOOR_OPEN,
-    "building.exterior.front.door.closed.horizontal": FRONT_DOOR_CLOSED,
-    "building.exterior.front.door.locked.horizontal": FRONT_DOOR_LOCKED,
     "building.exterior.wall.horizontal": PNG_HORIZONTAL,
     "building.exterior.wall.vertical.west": PNG_VERTICAL_WEST,
     "building.exterior.wall.vertical.east": PNG_VERTICAL_EAST,
@@ -88,7 +91,27 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.interior.wall.vertical.west": PNG_VERTICAL_WEST,
     "building.interior.wall.vertical.east": PNG_VERTICAL_EAST,
     "building.interior.wall.end.east": PNG_HORIZONTAL,
-    "building.interior.wall.end.west": PNG_HORIZONTAL
+    "building.interior.wall.end.west": PNG_HORIZONTAL,
+    "building.exterior.front.door.open.horizontal": FRONT_DOOR_OPEN,
+    "building.exterior.front.door.closed.horizontal": FRONT_DOOR_CLOSED,
+    "building.exterior.front.door.locked.horizontal": FRONT_DOOR_LOCKED,
+    "building.exterior.front.doorway.horizontal": FRONT_DOORWAY,
+    "building.exterior.door.open.horizontal": horizontalDoorSprite(0, 0),
+    "building.exterior.door.open.vertical": verticalDoorSprite(0, 0),
+    "building.interior.door.open.horizontal": horizontalDoorSprite(0, 1),
+    "building.interior.door.open.vertical": verticalDoorSprite(0, 1),
+    "building.exterior.door.closed.horizontal": horizontalDoorSprite(1, 0),
+    "building.exterior.door.closed.vertical": verticalDoorSprite(1, 0),
+    "building.interior.door.closed.horizontal": horizontalDoorSprite(1, 1),
+    "building.interior.door.closed.vertical": verticalDoorSprite(1, 1),
+    "building.exterior.door.locked.horizontal": horizontalDoorSprite(2, 0),
+    "building.exterior.door.locked.vertical": verticalDoorSprite(2, 0),
+    "building.interior.door.locked.horizontal": horizontalDoorSprite(2, 1),
+    "building.interior.door.locked.vertical": verticalDoorSprite(2, 1),
+    "building.exterior.doorway.horizontal": horizontalDoorSprite(3, 0),
+    "building.exterior.doorway.vertical": verticalDoorSprite(3, 0),
+    "building.interior.doorway.horizontal": horizontalDoorSprite(3, 1),
+    "building.interior.doorway.vertical": verticalDoorSprite(3, 1)
 });
 
 const BUILDING_PNG_PATHS = Object.freeze({
@@ -99,10 +122,6 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.exterior.front.wall2.window": EXTERIOR_FRONT_WINDOW_WALL_PATH,
     "building.exterior.front.wall1.left": EXTERIOR_FRONT_WALL_PATH,
     "building.exterior.front.wall1.right": EXTERIOR_FRONT_WALL_PATH,
-    "building.exterior.front.doorway.horizontal": EXTERIOR_FRONT_DOOR_PATH,
-    "building.exterior.front.door.open.horizontal": EXTERIOR_FRONT_DOOR_PATH,
-    "building.exterior.front.door.closed.horizontal": EXTERIOR_FRONT_DOOR_PATH,
-    "building.exterior.front.door.locked.horizontal": EXTERIOR_FRONT_DOOR_PATH,
     "building.exterior.wall.horizontal": BUILDING_WALL_PNG_DIRECTORY + "wall_horizontal.png",
     "building.exterior.wall.vertical.west": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_west.png",
     "building.exterior.wall.vertical.east": BUILDING_WALL_PNG_DIRECTORY + "wall_vertical_east.png",
@@ -115,7 +134,27 @@ const BUILDING_PNG_PATHS = Object.freeze({
     "building.interior.wall.vertical.west": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_vertical_west.svg",
     "building.interior.wall.vertical.east": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_vertical_east.svg",
     "building.interior.wall.end.east": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_right.svg",
-    "building.interior.wall.end.west": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_left.svg"
+    "building.interior.wall.end.west": BUILDING_INTERNAL_WALL_DIRECTORY + "wall_horizontal_1m_left.svg",
+    "building.exterior.front.door.open.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.front.door.closed.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.front.door.locked.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.front.doorway.horizontal": EXTERIOR_FRONT_DOOR_PATH,
+    "building.exterior.door.open.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.exterior.door.open.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.interior.door.open.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.interior.door.open.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.exterior.door.closed.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.exterior.door.closed.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.interior.door.closed.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.interior.door.closed.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.exterior.door.locked.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.exterior.door.locked.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.interior.door.locked.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.interior.door.locked.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.exterior.doorway.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.exterior.doorway.vertical": BUILDING_VERTICAL_DOOR_PATH,
+    "building.interior.doorway.horizontal": BUILDING_HORIZONTAL_DOOR_PATH,
+    "building.interior.doorway.vertical": BUILDING_VERTICAL_DOOR_PATH
 });
 
 const BUILDING_RESOLVED_SPRITES = Object.freeze({ ...BUILDING_SPRITES, ...BUILDING_PNG_SPRITES });
