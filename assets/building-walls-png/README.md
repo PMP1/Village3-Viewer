@@ -28,10 +28,11 @@ downstairs partitions now reuse `wall_front_2m.png`; vertical side walls retain
 their perspective-specific sources.
 
 Front, side and interior door states use high-density transparent PNG atlases:
-`doors_front_2x.png` (256×128), `doors_horizontal_2x.png` (256×192) and
-`doors_vertical_2x.png` (512×128). Open doors preserve a transparent opening and
-draw only the ajar leaf and the structural timber bar. Door art has no separate
-frame.
+`doors_front_2x.png` (256×160), `doors_horizontal_2x.png` (256×256) and
+`doors_vertical_2x.png` (512×160). The 64 px source width remains one metre at 2×
+wall resolution; open leaves use taller source rectangles so the hinge side stays
+aligned while the leaf projects into the room. Open doorways remain transparent,
+and door art has no separate frame.
 
 The wooden floor remains a separate layer in
 `../tiles-png/wood_floor.png`. No floor pixels are part of either wall source.

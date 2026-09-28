@@ -58,13 +58,13 @@ const PNG_INTERIOR_WALL_1_RIGHT = Object.freeze({...PNG_EXTERIOR_FRONT_WALL_1,"s
 const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":114,"sourceWidth":16,"sourceX":0,"sourceY":0});
 const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":114,"sourceWidth":24,"sourceX":0,"sourceY":0});
 const FRONT_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
-const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"sourceX":64});
+const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"drawHeight":80,"sourceHeight":160,"sourceX":64});
 const FRONT_DOOR_CLOSED = Object.freeze({...FRONT_DOORWAY,"sourceX":128});
 const FRONT_DOOR_LOCKED = Object.freeze({...FRONT_DOORWAY,"sourceX":192});
 const PNG_HORIZONTAL_DOOR = Object.freeze({"anchorX":0,"anchorY":40,"drawHeight":48,"drawWidth":32,"sourceHeight":96,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const PNG_VERTICAL_DOOR = Object.freeze({"anchorX":16,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
-const horizontalDoorSprite = (state, layer) => Object.freeze({...PNG_HORIZONTAL_DOOR,"sourceX":state * 64,"sourceY":layer * 96});
-const verticalDoorSprite = (state, layer) => Object.freeze({...PNG_VERTICAL_DOOR,"sourceX":(layer * 4 + state) * 64});
+const horizontalDoorSprite = (state, layer) => Object.freeze({...PNG_HORIZONTAL_DOOR,...(state === 0 ? {"drawHeight":64,"sourceHeight":128} : {}),"sourceX":state * 64,"sourceY":layer * 128});
+const verticalDoorSprite = (state, layer) => Object.freeze({...PNG_VERTICAL_DOOR,...(state === 0 ? {"drawHeight":80,"sourceHeight":160} : {}),"sourceX":(layer * 4 + state) * 64});
 
 // Side walls remain one-metre logical sections. Their 96 px canvas carries the
 // 64 px rise plus the 32 px descending run, independently of horizontal bays.

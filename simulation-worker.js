@@ -491,30 +491,30 @@
     bakerySite: {
       position: { x: 80, y: 96 },
       frontDoorSide: "east",
-      shopProviderPosition: { x: 82, y: 96 },
-      shopCustomerPosition: { x: 83, y: 96 },
+      shopProviderPosition: { x: 82.5, y: 95.5 },
+      shopCustomerPosition: { x: 82.5, y: 96.5 },
       workPosition: { x: 78, y: 94 },
       livingPosition: { x: 78, y: 98 }
     },
     millSite: {
       position: { x: 68, y: 78 },
       frontDoorSide: "east",
-      serviceProviderPosition: { x: 69, y: 76 },
-      serviceCustomerPosition: { x: 70, y: 76 },
+      serviceProviderPosition: { x: 69.5, y: 75.5 },
+      serviceCustomerPosition: { x: 69.5, y: 76.5 },
       workPosition: { x: 66, y: 78 }
     },
     merchantWarehouseSite: {
       position: { x: 126, y: 94 },
       frontDoorSide: "east",
-      serviceProviderPosition: { x: 128, y: 94 },
-      serviceCustomerPosition: { x: 129, y: 94 },
+      serviceProviderPosition: { x: 128.5, y: 93.5 },
+      serviceCustomerPosition: { x: 128.5, y: 94.5 },
       storagePosition: { x: 124, y: 94 }
     },
     butcherSite: {
       position: { x: 121, y: 104 },
       frontDoorSide: "east",
-      shopProviderPosition: { x: 123, y: 104 },
-      shopCustomerPosition: { x: 124, y: 104 },
+      shopProviderPosition: { x: 123.5, y: 103.5 },
+      shopCustomerPosition: { x: 123.5, y: 104.5 },
       workPosition: { x: 119, y: 102 },
       livingPosition: { x: 119, y: 106 }
     },
@@ -3325,17 +3325,20 @@
       options.providerPosition,
       options.customerPosition
     );
+    const width = options.counterWidthMetres ?? 1;
+    const barriers = counterBarrier ? [counterBarrier, ...additionalCounterBarriers(counterBarrier, width)] : [];
+    const position = counterBarrier ? counterPosition(counterBarrier, width) : {
+      x: (options.providerPosition.x + options.customerPosition.x) / 2,
+      y: (options.providerPosition.y + options.customerPosition.y) / 2
+    };
     return {
       id: options.id,
       kind: "other",
       visualSize: "small",
-      position: {
-        x: (options.providerPosition.x + options.customerPosition.x) / 2,
-        y: (options.providerPosition.y + options.customerPosition.y) / 2
-      },
+      position,
       ...options.containerId ? { containerId: options.containerId } : {},
       ...options.ownerId ? { ownerId: options.ownerId } : {},
-      ...counterBarrier ? { physicalEdgeBarriers: [counterBarrier] } : {},
+      ...barriers.length > 0 ? { physicalEdgeBarriers: barriers } : {},
       servicePoint: {
         placeId: options.placeId,
         services: [...options.services],
@@ -3344,6 +3347,30 @@
         state: options.initialState ?? "open"
       }
     };
+  }
+  function counterPosition(barrier, widthMetres) {
+    const horizontalCounter = barrier.first.y !== barrier.second.y;
+    return horizontalCounter ? {
+      x: (barrier.first.x + barrier.second.x) / 2 + widthMetres / 2,
+      y: (barrier.first.y + barrier.second.y) / 2 + 0.5
+    } : {
+      x: (barrier.first.x + barrier.second.x) / 2 + 0.5,
+      y: (barrier.first.y + barrier.second.y) / 2 + widthMetres / 2
+    };
+  }
+  function additionalCounterBarriers(barrier, widthMetres) {
+    const extraCells = Math.max(0, Math.ceil(widthMetres) - 1);
+    const horizontalCounter = barrier.first.y !== barrier.second.y;
+    return Array.from({ length: extraCells }, (_, index) => {
+      const offset = index + 1;
+      const dx = horizontalCounter ? offset : 0;
+      const dy = horizontalCounter ? 0 : offset;
+      return {
+        first: { x: barrier.first.x + dx, y: barrier.first.y + dy },
+        second: { x: barrier.second.x + dx, y: barrier.second.y + dy },
+        blockedChannels: ["movement"]
+      };
+    });
   }
 
   // src/scenarios/DefaultBakery.ts
@@ -3392,6 +3419,7 @@
       services: ["food"],
       providerPosition: { ...site.shopProviderPosition },
       customerPosition: { ...site.shopCustomerPosition },
+      counterWidthMetres: 2,
       ownerId: baker.id,
       containerId: DEFAULT_BAKERY_COUNTER_ID,
       initialState: "open"
@@ -4326,6 +4354,7 @@
       services: ["trade"],
       providerPosition: { ...site.serviceProviderPosition },
       customerPosition: { ...site.serviceCustomerPosition },
+      counterWidthMetres: 2,
       ownerId: merchant.id,
       initialState: "closed"
     });
@@ -5832,6 +5861,7 @@
       services: ["milling"],
       providerPosition: { ...site.serviceProviderPosition },
       customerPosition: { ...site.serviceCustomerPosition },
+      counterWidthMetres: 2,
       ownerId: miller.id,
       initialState: "open"
     });
@@ -19702,6 +19732,7 @@
       services: ["food", "trade"],
       providerPosition: { ...site.shopProviderPosition },
       customerPosition: { ...site.shopCustomerPosition },
+      counterWidthMetres: 2,
       ownerId: butcher.id,
       containerId: DEFAULT_BUTCHER_COUNTER_ID,
       initialState: "closed"
@@ -20775,10 +20806,12 @@
         return { type: "centered-rectangle", width: 0.8, height: 0.55 };
       }
       if (object.servicePoint !== void 0) {
-        const barrier = object.physicalEdgeBarriers?.[0];
+        const barriers = object.physicalEdgeBarriers ?? [];
+        const barrier = barriers[0];
+        const counterWidth = barriers.length > 1 ? barriers.length : 1.4;
         if (barrier) {
           const crossesEastWest = barrier.first.x !== barrier.second.x;
-          return crossesEastWest ? { type: "centered-rectangle", width: 0.5, height: 1.4 } : { type: "centered-rectangle", width: 1.4, height: 0.5 };
+          return crossesEastWest ? { type: "centered-rectangle", width: 0.5, height: counterWidth } : { type: "centered-rectangle", width: counterWidth, height: 0.5 };
         }
         return { type: "centered-rectangle", width: 1.4, height: 0.5 };
       }

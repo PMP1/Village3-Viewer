@@ -3,7 +3,7 @@
         hearth: "./assets/props/home-hearth.png",
         bed: "./assets/props/home-bed.png",
         "dining-table": "./assets/props/home-dining-table.png",
-        "service-counter": "./assets/tiles-png/service_counter.png",
+        "service-counter": "./assets/props/medieval-shop-counter.png",
         "dining-seat": "./assets/props/home-stool.svg",
         cart: "./assets/props/cart.svg"
     });
@@ -15,7 +15,7 @@
         hearth: Object.freeze({ visualWidth: 1.10, visualHeight: 1.50, baseFacing: "south", rotateWithFacing: false }),
         bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, visualOffsetY: -0.70, baseFacing: "east", rotateWithFacing: false }),
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
-        "service-counter": Object.freeze({ visualWidth: 1.55, visualHeight: 1.10, baseFacing: "south", rotateWithFacing: false }),
+        "service-counter": Object.freeze({ visualWidth: 2.00, visualHeight: 1.50, visualOffsetY: 0.50, baseFacing: "south", rotateWithFacing: false }),
         "dining-seat": Object.freeze({ visualWidth: 0.72, visualHeight: 0.72, baseFacing: "south", rotateWithFacing: false }),
         cart: Object.freeze({ visualWidth: 2.00, visualHeight: 1.55, baseFacing: "east", rotateWithFacing: true })
     });
@@ -74,11 +74,7 @@
         const type = propType(entity);
         if (type === "dining-seat") return "south";
         if (type === "cart") return "east";
-        if (type === "service-counter") {
-            const geometry = entity.geometry;
-            if (geometry?.type === "centered-rectangle" && geometry.height > geometry.width) return "east";
-            return "south";
-        }
+        if (type === "service-counter") return "south";
         return PROP_DEFINITIONS[type]?.baseFacing ?? "south";
     }
 
