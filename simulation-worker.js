@@ -468,18 +468,18 @@
       charlie: { x: 80, y: 103 }
     },
     homes: {
-      bob: { position: { x: 78, y: 78 }, frontDoorSide: "east" },
-      charlie: { position: { x: 77, y: 122 }, frontDoorSide: "north" },
-      dave: { position: { x: 124, y: 121 }, frontDoorSide: "north" },
+      bob: { position: { x: 78, y: 78 }, frontDoorSide: "south" },
+      charlie: { position: { x: 77, y: 122 }, frontDoorSide: "south" },
+      dave: { position: { x: 124, y: 121 }, frontDoorSide: "south" },
       george: { position: { x: 132, y: 82 }, frontDoorSide: "south" },
-      helen: { position: { x: 88, y: 122 }, frontDoorSide: "north" },
-      isaac: { position: { x: 54, y: 132 }, frontDoorSide: "east" }
+      helen: { position: { x: 88, y: 122 }, frontDoorSide: "south" },
+      isaac: { position: { x: 54, y: 132 }, frontDoorSide: "south" }
     },
     tavern: {
       position: { x: 103, y: 81 },
       frontDoorSide: "south",
-      barProviderPosition: { x: 103, y: 84 },
-      barCustomerPosition: { x: 102, y: 84 },
+      barProviderPosition: { x: 103.5, y: 82.5 },
+      barCustomerPosition: { x: 103.5, y: 83.5 },
       seatPositions: [
         { x: 101.5, y: 82.5 },
         { x: 105.5, y: 82.5 },
@@ -490,33 +490,33 @@
     daveSellingPosition: { x: 112, y: 103 },
     bakerySite: {
       position: { x: 80, y: 96 },
-      frontDoorSide: "east",
-      shopProviderPosition: { x: 82.5, y: 95.5 },
-      shopCustomerPosition: { x: 82.5, y: 96.5 },
+      frontDoorSide: "south",
+      shopProviderPosition: { x: 78.5, y: 95.5 },
+      shopCustomerPosition: { x: 78.5, y: 96.5 },
       workPosition: { x: 78, y: 94 },
-      livingPosition: { x: 78, y: 98 }
+      livingPosition: { x: 82, y: 94 }
     },
     millSite: {
       position: { x: 68, y: 78 },
-      frontDoorSide: "east",
-      serviceProviderPosition: { x: 69.5, y: 75.5 },
-      serviceCustomerPosition: { x: 69.5, y: 76.5 },
-      workPosition: { x: 66, y: 78 }
+      frontDoorSide: "south",
+      serviceProviderPosition: { x: 68.5, y: 77.5 },
+      serviceCustomerPosition: { x: 68.5, y: 78.5 },
+      workPosition: { x: 68, y: 76.5 }
     },
     merchantWarehouseSite: {
       position: { x: 126, y: 94 },
-      frontDoorSide: "east",
+      frontDoorSide: "south",
       serviceProviderPosition: { x: 128.5, y: 93.5 },
       serviceCustomerPosition: { x: 128.5, y: 94.5 },
-      storagePosition: { x: 124, y: 94 }
+      storagePosition: { x: 124, y: 92 }
     },
     butcherSite: {
       position: { x: 121, y: 104 },
-      frontDoorSide: "east",
-      shopProviderPosition: { x: 123.5, y: 103.5 },
-      shopCustomerPosition: { x: 123.5, y: 104.5 },
+      frontDoorSide: "south",
+      shopProviderPosition: { x: 119.5, y: 103.5 },
+      shopCustomerPosition: { x: 119.5, y: 104.5 },
       workPosition: { x: 119, y: 102 },
-      livingPosition: { x: 119, y: 106 }
+      livingPosition: { x: 123, y: 102 }
     },
     hookcrestHabitats: [
       { id: "west-field-hookcrest-habitat", position: { x: 79, y: 146 } },
@@ -3169,28 +3169,31 @@
     const workroomDoorId = `${options.id}-workroom-door`;
     const livingDoorId = `${options.id}-living-door`;
     const shop = room(ids.shop, options.id, {
-      x: origin.x + 4,
-      y: origin.y
-    }, 4, 8, "public");
-    const workroom = room(ids.workroom, options.id, origin, 4, 4, "private");
-    const living = room(ids.living, options.id, {
       x: origin.x,
       y: origin.y + 4
+    }, 8, 4, "public");
+    const workroom = room(ids.workroom, options.id, origin, 4, 4, "private");
+    const living = room(ids.living, options.id, {
+      x: origin.x + 4,
+      y: origin.y
     }, 4, 4, "private", options.ownerId);
     const internalPartitions = [
       {
         origin: { x: origin.x + 3, y: origin.y },
         side: "east",
-        length: 8,
-        doors: [
-          { id: workroomDoorId, offset: 2, state: "open" },
-          { id: livingDoorId, offset: 6, state: "open" }
-        ]
+        length: 4
       },
       {
         origin: { x: origin.x, y: origin.y + 3 },
         side: "south",
-        length: 4
+        length: 2,
+        doors: [{ id: workroomDoorId, offset: 1, state: "open" }]
+      },
+      {
+        origin: { x: origin.x + 4, y: origin.y + 3 },
+        side: "south",
+        length: 4,
+        doors: [{ id: livingDoorId, offset: 2, state: "open" }]
       }
     ];
     const livingCentre = roomCentre(living);
@@ -3223,7 +3226,7 @@
         height: DEFAULT_BAKERY_HEIGHT_METRES,
         doors: [{
           id: frontDoorId,
-          side: "east",
+          side: options.frontDoorSide,
           offset: 4,
           state: "open",
           barredFromInside: true
@@ -3410,7 +3413,7 @@
       id: DEFAULT_BAKERY_ID,
       ownerId: baker.id,
       position: { ...site.position },
-      frontDoorSide: "east",
+      frontDoorSide: site.frontDoorSide,
       advertisedServiceHours: DEFAULT_BAKERY_SERVICE_HOURS
     });
     const counter = createServicePoint({
@@ -4174,15 +4177,14 @@
   }
 
   // src/world/House.ts
-  var DEFAULT_HOUSE_WIDTH_METRES = 4;
+  var DEFAULT_HOUSE_WIDTH_METRES = 8;
   var DEFAULT_HOUSE_HEIGHT_METRES = 4;
   function createHouse(options) {
     const origin = {
       x: Math.floor(options.position.x) - Math.floor(DEFAULT_HOUSE_WIDTH_METRES / 2),
       y: Math.floor(options.position.y) - Math.floor(DEFAULT_HOUSE_HEIGHT_METRES / 2)
     };
-    const doorSideLength = options.frontDoorSide === "north" || options.frontDoorSide === "south" ? DEFAULT_HOUSE_WIDTH_METRES : DEFAULT_HOUSE_HEIGHT_METRES;
-    const frontDoorOffset = Math.floor(doorSideLength / 2);
+    const frontDoorOffset = Math.floor(DEFAULT_HOUSE_WIDTH_METRES / 2);
     const bedActionPoint = { ...options.position };
     const bed = createUsableResource({
       id: `${options.id}-bed`,
@@ -4250,15 +4252,22 @@
       y: Math.floor(options.position.y) - Math.floor(DEFAULT_WAREHOUSE_HEIGHT_METRES / 2)
     };
     const ids = warehouseRoomIds(options.id);
-    const storage = room2(ids.storage, options.id, origin, 6, 8, "private");
-    const tradeRoom = room2(ids.tradeRoom, options.id, { x: origin.x + 6, y: origin.y }, 4, 8, "public");
+    const storage = room2(ids.storage, options.id, origin, 10, 4, "private");
+    const tradeRoom = room2(ids.tradeRoom, options.id, { x: origin.x, y: origin.y + 4 }, 10, 4, "public");
     const storageCentre = roomCentre(storage);
-    const internalPartitions = [{
-      origin: { x: origin.x + 5, y: origin.y },
-      side: "east",
-      length: 8,
-      doors: [{ id: `${options.id}-storage-door`, offset: 4, state: "open" }]
-    }];
+    const internalPartitions = [
+      {
+        origin: { x: origin.x, y: origin.y + 3 },
+        side: "south",
+        length: 7,
+        doors: [{ id: `${options.id}-storage-door`, offset: 1, state: "open" }]
+      },
+      {
+        origin: { x: origin.x + 9, y: origin.y + 3 },
+        side: "south",
+        length: 1
+      }
+    ];
     return {
       id: options.id,
       kind: "building",
@@ -4280,7 +4289,7 @@
         origin,
         width: DEFAULT_WAREHOUSE_WIDTH_METRES,
         height: DEFAULT_WAREHOUSE_HEIGHT_METRES,
-        doors: [{ id: `${options.id}-front-door`, side: options.frontDoorSide, offset: 4, state: "open" }]
+        doors: [{ id: `${options.id}-front-door`, side: options.frontDoorSide, offset: 5, state: "open" }]
       },
       physicalRooms: [storage, tradeRoom],
       internalPartitions,
@@ -5784,14 +5793,21 @@
     const ids = millRoomIds(options.id);
     const frontDoorId = `${options.id}-front-door`;
     const workroomDoorId = `${options.id}-workroom-door`;
-    const workroom = room3(ids.workroom, options.id, origin, 4, 6, "private");
-    const reception = room3(ids.reception, options.id, { x: origin.x + 4, y: origin.y }, 4, 6, "public");
-    const internalPartitions = [{
-      origin: { x: origin.x + 3, y: origin.y },
-      side: "east",
-      length: 6,
-      doors: [{ id: workroomDoorId, offset: 3, state: "open" }]
-    }];
+    const workroom = room3(ids.workroom, options.id, origin, 8, 3, "private");
+    const reception = room3(ids.reception, options.id, { x: origin.x, y: origin.y + 3 }, 8, 3, "public");
+    const internalPartitions = [
+      {
+        origin: { x: origin.x, y: origin.y + 2 },
+        side: "south",
+        length: 4,
+        doors: [{ id: workroomDoorId, offset: 1, state: "open" }]
+      },
+      {
+        origin: { x: origin.x + 6, y: origin.y + 2 },
+        side: "south",
+        length: 2
+      }
+    ];
     const workCentre = roomCentre(workroom);
     return {
       id: options.id,
@@ -5814,7 +5830,7 @@
         origin,
         width: DEFAULT_MILL_WIDTH_METRES,
         height: DEFAULT_MILL_HEIGHT_METRES,
-        doors: [{ id: frontDoorId, side: options.frontDoorSide, offset: 3, state: "open" }]
+        doors: [{ id: frontDoorId, side: options.frontDoorSide, offset: 4, state: "open" }]
       },
       physicalRooms: [workroom, reception],
       internalPartitions,
@@ -18700,15 +18716,16 @@
   };
 
   // src/world/Tavern.ts
-  var DEFAULT_TAVERN_WIDTH_METRES = 9;
-  var DEFAULT_TAVERN_HEIGHT_METRES = 10;
+  var DEFAULT_TAVERN_WIDTH_METRES = 12;
+  var DEFAULT_TAVERN_HEIGHT_METRES = 8;
   var DEFAULT_TAVERN_ROOM_DAILY_RATE = DEFAULT_ROOM_DAY_PRICE;
   function tavernRoomIds(tavernId) {
     return {
       common: `${tavernId}-common-room`,
       resident: `${tavernId}-resident-room`,
       guest1: `${tavernId}-guest-room-1`,
-      guest2: `${tavernId}-guest-room-2`
+      guest2: `${tavernId}-guest-room-2`,
+      kitchen: `${tavernId}-kitchen-room`
     };
   }
   function tavernBedId(roomId) {
@@ -18722,11 +18739,11 @@
   }
   function tavernKitchenWorkPosition(tavernPosition) {
     const origin = tavernOrigin(tavernPosition);
-    return { x: origin.x + 7, y: origin.y + 8 };
+    return { x: origin.x + 11.5, y: origin.y + 2.5 };
   }
   function tavernKitchenHearthWorkPosition(tavernPosition) {
     const origin = tavernOrigin(tavernPosition);
-    return { x: origin.x + 5.5, y: origin.y + 4.5 };
+    return { x: origin.x + 11.5, y: origin.y + 1.5 };
   }
   function createTavern(options) {
     const origin = tavernOrigin(options.position);
@@ -18734,13 +18751,12 @@
     if (!Number.isInteger(roomDailyRate) || roomDailyRate < 0) {
       throw new Error("Tavern room daily rate must be a non-negative whole number of currency items.");
     }
-    const doorSideLength = options.frontDoorSide === "north" || options.frontDoorSide === "south" ? DEFAULT_TAVERN_WIDTH_METRES : DEFAULT_TAVERN_HEIGHT_METRES;
-    const frontDoorOffset = Math.floor(doorSideLength / 2);
+    const frontDoorOffset = Math.floor(DEFAULT_TAVERN_WIDTH_METRES / 2);
     const ids = tavernRoomIds(options.id);
     const common = room4(ids.common, options.id, {
       x: origin.x,
       y: origin.y + 3
-    }, 9, 7, "public");
+    }, 12, 5, "public");
     const resident = room4(ids.resident, options.id, origin, 3, 3, "private", options.ownerId);
     const guest1 = rentableRoom(ids.guest1, options.id, {
       x: origin.x + 3,
@@ -18750,9 +18766,14 @@
       x: origin.x + 6,
       y: origin.y
     }, roomDailyRate);
-    const rooms = [common, resident, guest1, guest2];
-    const bedroomBoundaryDoors = [resident, guest1, guest2].map((bedroom, index) => ({
-      id: `${bedroom.id}-door`,
+    const kitchen = room4(ids.kitchen, options.id, {
+      x: origin.x + 9,
+      y: origin.y
+    }, 3, 3, "private", options.ownerId);
+    const rooms = [common, resident, guest1, guest2, kitchen];
+    const northRooms = [resident, guest1, guest2, kitchen];
+    const northRoomDoors = northRooms.map((northRoom, index) => ({
+      id: `${northRoom.id}-door`,
       offset: index * 3 + 1,
       state: "open",
       barredFromInside: true
@@ -18761,8 +18782,8 @@
       {
         origin: { x: origin.x, y: origin.y + 2 },
         side: "south",
-        length: 9,
-        doors: bedroomBoundaryDoors
+        length: 12,
+        doors: northRoomDoors
       },
       {
         origin: { x: origin.x + 2, y: origin.y },
@@ -18771,6 +18792,11 @@
       },
       {
         origin: { x: origin.x + 5, y: origin.y },
+        side: "east",
+        length: 3
+      },
+      {
+        origin: { x: origin.x + 8, y: origin.y },
         side: "east",
         length: 3
       }
@@ -18788,13 +18814,13 @@
     });
     const kitchenPosition = tavernKitchenWorkPosition(options.position);
     const kitchenHearthWorkPosition = tavernKitchenHearthWorkPosition(options.position);
-    const kitchenHearthCell = { x: origin.x + 5, y: origin.y + 3 };
+    const kitchenHearthCell = { x: origin.x + 11, y: origin.y };
     const kitchenId = tavernKitchenId(options.id);
     const kitchenFixtures = [
       {
         id: kitchenId,
         kind: "other",
-        position: { x: kitchenPosition.x, y: kitchenPosition.y - 1 },
+        position: { ...kitchenPosition },
         ownerId: options.ownerId,
         containerId: kitchenId
       },
@@ -18802,7 +18828,7 @@
         id: tavernKitchenHearthId(options.id),
         type: "hearth",
         placeId: options.id,
-        roomId: ids.common,
+        roomId: ids.kitchen,
         position: { x: kitchenHearthCell.x + 0.5, y: kitchenHearthCell.y + 0.5 },
         actionPointPosition: kitchenHearthWorkPosition,
         physicalObstruction: {
@@ -19001,6 +19027,7 @@
       services: ["food", "drink"],
       providerPosition: tavernBarProviderPosition,
       customerPosition: tavernBarCustomerPosition,
+      counterWidthMetres: 2,
       ownerId: emma.id,
       containerId: "village-tavern-bar",
       initialState: "open"
@@ -19068,7 +19095,7 @@
     world2.addObject(tavernBar);
     world2.roomResources.registerLiquid({
       id: tavernWaterBarrelId,
-      roomId: tavernRoomIds(villageTavern.id).common,
+      roomId: tavernRoomIds(villageTavern.id).kitchen,
       liquidType: "water",
       capacity: 24,
       initialAmount: 24,
@@ -19587,23 +19614,26 @@
     const frontDoorId = `${options.id}-front-door`;
     const workroomDoorId = `${options.id}-workroom-door`;
     const livingDoorId = `${options.id}-living-door`;
-    const shop = room5(ids.shop, options.id, { x: origin.x + 4, y: origin.y }, 4, 8, "public");
+    const shop = room5(ids.shop, options.id, { x: origin.x, y: origin.y + 4 }, 8, 4, "public");
     const workroom = room5(ids.workroom, options.id, origin, 4, 4, "private");
-    const living = room5(ids.living, options.id, { x: origin.x, y: origin.y + 4 }, 4, 4, "private", options.ownerId);
+    const living = room5(ids.living, options.id, { x: origin.x + 4, y: origin.y }, 4, 4, "private", options.ownerId);
     const internalPartitions = [
       {
         origin: { x: origin.x + 3, y: origin.y },
         side: "east",
-        length: 8,
-        doors: [
-          { id: workroomDoorId, offset: 2, state: "open" },
-          { id: livingDoorId, offset: 6, state: "open" }
-        ]
+        length: 4
       },
       {
         origin: { x: origin.x, y: origin.y + 3 },
         side: "south",
-        length: 4
+        length: 2,
+        doors: [{ id: workroomDoorId, offset: 1, state: "open" }]
+      },
+      {
+        origin: { x: origin.x + 4, y: origin.y + 3 },
+        side: "south",
+        length: 4,
+        doors: [{ id: livingDoorId, offset: 2, state: "open" }]
       }
     ];
     const livingCentre = roomCentre(living);
@@ -20086,7 +20116,7 @@
       id: "emma-tavern-water-reserve",
       name: "Fill Tavern Kitchen Water Reserve",
       reserveId: "emma-tavern-water-barrel",
-      roomId: tavernRoomIds("village-tavern").common,
+      roomId: tavernRoomIds("village-tavern").kitchen,
       roomPosition: { ...kitchenPosition },
       bucketItemId: DEFAULT_TAVERN_BUCKET_ID,
       sourceId: "village-fountain",
