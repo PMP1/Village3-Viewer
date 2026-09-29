@@ -365,6 +365,7 @@ function drawRoomTileOverlay(entity, project) {
 
 function isRaisedDepthEntity(entity) {
     if (entity.category === "character") return true;
+    if (entity.subtype === "fountain") return true;
     return typeof fixtureTileId === "function" && Boolean(fixtureTileId(entity));
 }
 
