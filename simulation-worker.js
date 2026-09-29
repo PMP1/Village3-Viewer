@@ -476,14 +476,14 @@
       isaac: { position: { x: 54, y: 132 }, frontDoorSide: "south" }
     },
     tavern: {
-      position: { x: 103, y: 81 },
+      position: { x: 93, y: 89 },
       frontDoorSide: "south",
-      barProviderPosition: { x: 103.5, y: 78.5 },
-      barCustomerPosition: { x: 103.5, y: 79.5 },
+      barProviderPosition: { x: 93.5, y: 86.5 },
+      barCustomerPosition: { x: 93.5, y: 87.5 },
       seatPositions: [
-        { x: 101.5, y: 82.5 },
-        { x: 105.5, y: 82.5 },
-        { x: 101.5, y: 84.5 }
+        { x: 91.5, y: 90.5 },
+        { x: 95.5, y: 90.5 },
+        { x: 91.5, y: 92.5 }
       ]
     },
     daveCartPosition: { x: 110, y: 103 },
