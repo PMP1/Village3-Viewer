@@ -351,8 +351,16 @@ function entityScreenBounds(entity, project) {
         };
     }
 
-    const geometry = entity.geometry;
     const point = project(entity.position);
+    if (entity.subtype === "fountain") {
+        const opposite = project({ x: entity.position.x - 1, y: entity.position.y - 2 });
+        const other = project({ x: entity.position.x + 1, y: entity.position.y });
+        return {
+            left: Math.min(opposite.x, other.x), right: Math.max(opposite.x, other.x),
+            top: Math.min(opposite.y, other.y), bottom: Math.max(opposite.y, other.y)
+        };
+    }
+    const geometry = entity.geometry;
     if (geometry?.type === "circle") {
         const radius = Math.max(1.5, geometry.radius * project.scale);
         return { left: point.x - radius, right: point.x + radius, top: point.y - radius, bottom: point.y + radius };
@@ -403,7 +411,7 @@ function shouldDrawLabel(entity, project) {
     if (entity.id === selectedEntityId) return true;
     if (entity.subtype === "building") return true;
     if (entity.category === "character") return project.scale >= 3;
-    if (entity.subtype === "fountain") return project.scale >= 7;
+    if (entity.subtype === "fountain") return false;
     if (entity.properties?.resourceType || entity.properties?.servicePointServices) return project.scale >= 10;
     return project.scale >= 12;
 }
@@ -418,6 +426,23 @@ function labelOffset(entity, project) {
 
 function drawPointGeometry(entity, point, project) {
     const geometry = entity.geometry;
+    if (entity.subtype === "fountain" && typeof drawAtlasTile === "function") {
+        const drawn = drawAtlasTile(
+            "scenery.fountain",
+            entity.position.x - 1,
+            entity.position.y - 2,
+            project,
+            2,
+            2
+        );
+        if (drawn) {
+            if (entity.id === selectedEntityId) {
+                const bounds = entityScreenBounds(entity, project);
+                context.strokeRect(bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top);
+            }
+            return true;
+        }
+    }
     if (geometry?.type === "circle") {
         const radius = Math.max(1.5, geometry.radius * project.scale);
         context.fillStyle = entity.subtype === "fountain" ? "#39c5cf" : "#8b949e";

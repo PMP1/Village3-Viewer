@@ -1,4 +1,5 @@
 const TILE_PNG_DIRECTORY = "./assets/tiles-png/";
+const FOUNTAIN_IMAGE_PATH = "./assets/scenery/village_fountain.png";
 const PATH_AUTOTILE_TILE_ID = "terrain.path.autotiles";
 const PATH_AUTOTILE_COLUMNS = 16;
 const MARKET_COBBLE_ATLAS_ID = "terrain.market-cobble-autotiles";
@@ -52,7 +53,8 @@ const TILE_IMAGE_PATHS = new Map([
     ["fixture.hearth", TILE_PNG_DIRECTORY + "hearth.png"],
     ["fixture.bed", TILE_PNG_DIRECTORY + "bed.png"],
     ["fixture.dining-table", TILE_PNG_DIRECTORY + "dining_table.png"],
-    ["fixture.service-counter", TILE_PNG_DIRECTORY + "service_counter.png"]
+    ["fixture.service-counter", TILE_PNG_DIRECTORY + "service_counter.png"],
+    ["scenery.fountain", FOUNTAIN_IMAGE_PATH]
 ]);
 
 const tileImages = new Map();
@@ -76,8 +78,9 @@ function drawAtlasTile(tileId, worldX, worldY, project, width = 1, height = 1) {
     const image = tileImages.get(tileId);
     if (!image || !tileReady.has(tileId)) return false;
     const rect = tileScreenRect(worldX, worldY, width, height, project);
-    context.imageSmoothingEnabled = false;
-    const usesNativeSize = tileId.startsWith("terrain.grass") || tileId.startsWith("terrain.wall-grass");
+    context.imageSmoothingEnabled = tileId === "scenery.fountain";
+    const usesNativeSize = tileId.startsWith("terrain.grass") ||
+        tileId.startsWith("terrain.wall-grass") || tileId === "scenery.fountain";
     const sourceWidth = usesNativeSize ? (image.naturalWidth || image.width || SOURCE_TILE_PIXELS) : SOURCE_TILE_PIXELS;
     const sourceHeight = usesNativeSize ? (image.naturalHeight || image.height || SOURCE_TILE_PIXELS) : SOURCE_TILE_PIXELS;
     context.drawImage(
