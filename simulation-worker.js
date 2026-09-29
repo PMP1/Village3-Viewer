@@ -478,8 +478,8 @@
     tavern: {
       position: { x: 103, y: 81 },
       frontDoorSide: "south",
-      barProviderPosition: { x: 103.5, y: 82.5 },
-      barCustomerPosition: { x: 103.5, y: 83.5 },
+      barProviderPosition: { x: 103.5, y: 78.5 },
+      barCustomerPosition: { x: 103.5, y: 79.5 },
       seatPositions: [
         { x: 101.5, y: 82.5 },
         { x: 105.5, y: 82.5 },
@@ -6298,26 +6298,25 @@
   // src/navigation/RectangularFootprint.ts
   function applyRectangularFootprint(grid, footprint) {
     validateFootprint(footprint);
-    const { origin, width, height } = footprint;
-    const southDoorOffsets = new Set(
-      (footprint.doors ?? []).filter((door) => door.side === "south").map((door) => door.offset)
-    );
-    for (let x = 0; x < width; x++) {
-      if (southDoorOffsets.has(x)) continue;
-      const coveredCell = { x: origin.x + x, y: origin.y + height - 1 };
-      grid.setChannelBarrier(
-        grid.neighbour(coveredCell, "north"),
-        coveredCell,
-        ["movement", "vision", "interaction"]
-      );
-    }
-    for (let x = 0; x < width; x++) {
-      grid.setWall({ x: origin.x + x, y: origin.y }, "north");
-      grid.setWall({ x: origin.x + x, y: origin.y + height - 1 }, "south");
-    }
-    for (let y = 0; y < height; y++) {
-      grid.setWall({ x: origin.x, y: origin.y + y }, "west");
-      grid.setWall({ x: origin.x + width - 1, y: origin.y + y }, "east");
+    const occupied = footprintCells(footprint);
+    const occupiedKeys = new Set(occupied.map(cellKey));
+    const doorBoundaries = new Set((footprint.doors ?? []).map((door) => {
+      const boundary = doorBoundary(footprint, door);
+      return boundaryKey(boundary.cell, boundary.direction);
+    }));
+    for (const cell of occupied) {
+      for (const direction of ["north", "east", "south", "west"]) {
+        if (occupiedKeys.has(cellKey(grid.neighbour(cell, direction)))) continue;
+        const key = boundaryKey(cell, direction);
+        if (!doorBoundaries.has(key)) grid.setWall(cell, direction);
+        if (direction === "south" && !doorBoundaries.has(key)) {
+          grid.setChannelBarrier(
+            grid.neighbour(cell, "north"),
+            cell,
+            ["movement", "vision", "interaction"]
+          );
+        }
+      }
     }
     for (const door of footprint.doors ?? []) {
       const boundary = doorBoundary(footprint, door);
@@ -6340,6 +6339,17 @@
     if (!Number.isInteger(footprint.height) || footprint.height <= 0) {
       throw new Error("Physical footprint height must be a positive integer number of metres.");
     }
+    for (const section of footprint.sections ?? []) {
+      if (!Number.isInteger(section.origin.x) || !Number.isInteger(section.origin.y)) {
+        throw new Error("Physical footprint section origins must use integer grid coordinates.");
+      }
+      if (!Number.isInteger(section.width) || section.width <= 0 || !Number.isInteger(section.height) || section.height <= 0) {
+        throw new Error("Physical footprint sections must use positive whole-metre dimensions.");
+      }
+      if (section.origin.x < footprint.origin.x || section.origin.y < footprint.origin.y || section.origin.x + section.width > footprint.origin.x + footprint.width || section.origin.y + section.height > footprint.origin.y + footprint.height) {
+        throw new Error("Physical footprint sections must stay within the bounding rectangle.");
+      }
+    }
     const seenDoorIds = /* @__PURE__ */ new Set();
     for (const door of footprint.doors ?? []) {
       if (!door.id) throw new Error("Physical footprint doors require an id.");
@@ -6351,7 +6361,33 @@
       if (!Number.isInteger(door.offset) || door.offset < 0 || door.offset >= sideLength) {
         throw new Error(`Door ${door.id} offset is outside the ${door.side} side.`);
       }
+      const boundary = doorBoundary(footprint, door);
+      if (!footprintContainsCell(footprint, boundary.cell)) {
+        throw new Error(`Door ${door.id} does not open from an occupied footprint cell.`);
+      }
     }
+  }
+  function footprintCells(footprint) {
+    const sections = footprint.sections?.length ? footprint.sections : [{ origin: footprint.origin, width: footprint.width, height: footprint.height }];
+    const cells = /* @__PURE__ */ new Map();
+    for (const section of sections) {
+      for (let y = 0; y < section.height; y++) {
+        for (let x = 0; x < section.width; x++) {
+          const cell = { x: section.origin.x + x, y: section.origin.y + y };
+          cells.set(cellKey(cell), cell);
+        }
+      }
+    }
+    return [...cells.values()];
+  }
+  function footprintContainsCell(footprint, cell) {
+    return footprintCells(footprint).some((candidate) => candidate.x === cell.x && candidate.y === cell.y);
+  }
+  function cellKey(cell) {
+    return `${cell.x},${cell.y}`;
+  }
+  function boundaryKey(cell, direction) {
+    return `${cellKey(cell)}:${direction}`;
   }
   function doorBoundary(footprint, door) {
     const { origin, width, height } = footprint;
@@ -18716,8 +18752,13 @@
   };
 
   // src/world/Tavern.ts
-  var DEFAULT_TAVERN_WIDTH_METRES = 12;
-  var DEFAULT_TAVERN_HEIGHT_METRES = 8;
+  var DEFAULT_TAVERN_WIDTH_METRES = 22;
+  var DEFAULT_TAVERN_HEIGHT_METRES = 10;
+  var DEFAULT_TAVERN_COMMON_WIDTH_METRES = 8;
+  var DEFAULT_TAVERN_COMMON_HEIGHT_METRES = 10;
+  var DEFAULT_TAVERN_SLEEPING_WING_WIDTH_METRES = 9;
+  var DEFAULT_TAVERN_SLEEPING_WING_HEIGHT_METRES = 5;
+  var DEFAULT_TAVERN_KITCHEN_SIZE_METRES = 5;
   var DEFAULT_TAVERN_ROOM_DAILY_RATE = DEFAULT_ROOM_DAY_PRICE;
   function tavernRoomIds(tavernId) {
     return {
@@ -18725,6 +18766,7 @@
       resident: `${tavernId}-resident-room`,
       guest1: `${tavernId}-guest-room-1`,
       guest2: `${tavernId}-guest-room-2`,
+      corridor: `${tavernId}-sleeping-corridor`,
       kitchen: `${tavernId}-kitchen-room`
     };
   }
@@ -18739,11 +18781,11 @@
   }
   function tavernKitchenWorkPosition(tavernPosition) {
     const origin = tavernOrigin(tavernPosition);
-    return { x: origin.x + 11.5, y: origin.y + 2.5 };
+    return { x: origin.x + 18.5, y: origin.y + 1.5 };
   }
   function tavernKitchenHearthWorkPosition(tavernPosition) {
     const origin = tavernOrigin(tavernPosition);
-    return { x: origin.x + 11.5, y: origin.y + 1.5 };
+    return { x: origin.x + 20.5, y: origin.y + 1.5 };
   }
   function createTavern(options) {
     const origin = tavernOrigin(options.position);
@@ -18751,29 +18793,40 @@
     if (!Number.isInteger(roomDailyRate) || roomDailyRate < 0) {
       throw new Error("Tavern room daily rate must be a non-negative whole number of currency items.");
     }
-    const frontDoorOffset = Math.floor(DEFAULT_TAVERN_WIDTH_METRES / 2);
+    const frontDoorOffset = DEFAULT_TAVERN_SLEEPING_WING_WIDTH_METRES + Math.floor(DEFAULT_TAVERN_COMMON_WIDTH_METRES / 2);
     const ids = tavernRoomIds(options.id);
-    const common = room4(ids.common, options.id, {
+    const commonOrigin = { x: origin.x + DEFAULT_TAVERN_SLEEPING_WING_WIDTH_METRES, y: origin.y };
+    const common = room4(
+      ids.common,
+      options.id,
+      commonOrigin,
+      DEFAULT_TAVERN_COMMON_WIDTH_METRES,
+      DEFAULT_TAVERN_COMMON_HEIGHT_METRES,
+      "public"
+    );
+    const guest1 = rentableRoom(ids.guest1, options.id, origin, roomDailyRate);
+    const guest2 = rentableRoom(ids.guest2, options.id, { x: origin.x + 3, y: origin.y }, roomDailyRate);
+    const resident = room4(
+      ids.resident,
+      options.id,
+      { x: origin.x + 6, y: origin.y },
+      3,
+      3,
+      "private",
+      options.ownerId
+    );
+    const corridor = room4(ids.corridor, options.id, {
       x: origin.x,
       y: origin.y + 3
-    }, 12, 5, "public");
-    const resident = room4(ids.resident, options.id, origin, 3, 3, "private", options.ownerId);
-    const guest1 = rentableRoom(ids.guest1, options.id, {
-      x: origin.x + 3,
-      y: origin.y
-    }, roomDailyRate);
-    const guest2 = rentableRoom(ids.guest2, options.id, {
-      x: origin.x + 6,
-      y: origin.y
-    }, roomDailyRate);
+    }, DEFAULT_TAVERN_SLEEPING_WING_WIDTH_METRES, 2, "public");
     const kitchen = room4(ids.kitchen, options.id, {
-      x: origin.x + 9,
+      x: commonOrigin.x + DEFAULT_TAVERN_COMMON_WIDTH_METRES,
       y: origin.y
-    }, 3, 3, "private", options.ownerId);
-    const rooms = [common, resident, guest1, guest2, kitchen];
-    const northRooms = [resident, guest1, guest2, kitchen];
-    const northRoomDoors = northRooms.map((northRoom, index) => ({
-      id: `${northRoom.id}-door`,
+    }, DEFAULT_TAVERN_KITCHEN_SIZE_METRES, DEFAULT_TAVERN_KITCHEN_SIZE_METRES, "private", options.ownerId);
+    const rooms = [common, guest1, guest2, resident, corridor, kitchen];
+    const sleepingRooms = [guest1, guest2, resident];
+    const sleepingRoomDoors = sleepingRooms.map((sleepingRoom, index) => ({
+      id: `${sleepingRoom.id}-door`,
       offset: index * 3 + 1,
       state: "open",
       barredFromInside: true
@@ -18782,8 +18835,8 @@
       {
         origin: { x: origin.x, y: origin.y + 2 },
         side: "south",
-        length: 12,
-        doors: northRoomDoors
+        length: 9,
+        doors: sleepingRoomDoors
       },
       {
         origin: { x: origin.x + 2, y: origin.y },
@@ -18797,6 +18850,13 @@
       },
       {
         origin: { x: origin.x + 8, y: origin.y },
+        side: "east",
+        length: 3
+      },
+      {
+        // The two metres nearest the back wall remain an open passage from
+        // behind the counter into the kitchen.
+        origin: { x: commonOrigin.x + DEFAULT_TAVERN_COMMON_WIDTH_METRES - 1, y: origin.y + 2 },
         side: "east",
         length: 3
       }
@@ -18814,7 +18874,7 @@
     });
     const kitchenPosition = tavernKitchenWorkPosition(options.position);
     const kitchenHearthWorkPosition = tavernKitchenHearthWorkPosition(options.position);
-    const kitchenHearthCell = { x: origin.x + 11, y: origin.y };
+    const kitchenHearthCell = { x: origin.x + 20, y: origin.y };
     const kitchenId = tavernKitchenId(options.id);
     const kitchenFixtures = [
       {
@@ -18868,6 +18928,23 @@
         origin,
         width: DEFAULT_TAVERN_WIDTH_METRES,
         height: DEFAULT_TAVERN_HEIGHT_METRES,
+        sections: [
+          {
+            origin,
+            width: DEFAULT_TAVERN_SLEEPING_WING_WIDTH_METRES,
+            height: DEFAULT_TAVERN_SLEEPING_WING_HEIGHT_METRES
+          },
+          {
+            origin: commonOrigin,
+            width: DEFAULT_TAVERN_COMMON_WIDTH_METRES,
+            height: DEFAULT_TAVERN_COMMON_HEIGHT_METRES
+          },
+          {
+            origin: kitchen.area.origin,
+            width: DEFAULT_TAVERN_KITCHEN_SIZE_METRES,
+            height: DEFAULT_TAVERN_KITCHEN_SIZE_METRES
+          }
+        ],
         doors: [{
           id: `${options.id}-front-door`,
           side: options.frontDoorSide,
@@ -18883,8 +18960,8 @@
   }
   function tavernOrigin(position) {
     return {
-      x: Math.floor(position.x) - Math.floor(DEFAULT_TAVERN_WIDTH_METRES / 2),
-      y: Math.floor(position.y) - Math.floor(DEFAULT_TAVERN_HEIGHT_METRES / 2)
+      x: Math.floor(position.x) - Math.floor(DEFAULT_TAVERN_COMMON_WIDTH_METRES / 2) - DEFAULT_TAVERN_SLEEPING_WING_WIDTH_METRES,
+      y: Math.floor(position.y) - Math.floor(DEFAULT_TAVERN_COMMON_HEIGHT_METRES / 2)
     };
   }
   function room4(id, placeId, origin, width, height, access, residentId) {
@@ -20854,6 +20931,13 @@
         origin: { ...footprint.origin },
         width: footprint.width,
         height: footprint.height,
+        ...footprint.sections?.length ? {
+          sections: footprint.sections.map((section) => ({
+            origin: { ...section.origin },
+            width: section.width,
+            height: section.height
+          }))
+        } : {},
         doors: (footprint.doors ?? []).map((door) => ({
           id: door.id,
           side: door.side,

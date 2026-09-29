@@ -268,12 +268,21 @@ function drawWorldTiles(project) {
 }
 
 function drawBuildingFloor(footprint, project) {
-    const minX = Math.floor(footprint.origin.x);
-    const minY = Math.floor(footprint.origin.y);
-    const maxX = Math.ceil(footprint.origin.x + footprint.width);
-    const maxY = Math.ceil(footprint.origin.y + footprint.height);
-    for (let y = minY; y < maxY; y++) {
-        for (let x = minX; x < maxX; x++) drawTile(TILE_IDS.woodFloor, x, y, project);
+    const sections = footprint.sections?.length ? footprint.sections : [footprint];
+    const drawn = new Set();
+    for (const section of sections) {
+        const minX = Math.floor(section.origin.x);
+        const minY = Math.floor(section.origin.y);
+        const maxX = Math.ceil(section.origin.x + section.width);
+        const maxY = Math.ceil(section.origin.y + section.height);
+        for (let y = minY; y < maxY; y++) {
+            for (let x = minX; x < maxX; x++) {
+                const key = x + "," + y;
+                if (drawn.has(key)) continue;
+                drawn.add(key);
+                drawTile(TILE_IDS.woodFloor, x, y, project);
+            }
+        }
     }
 }
 

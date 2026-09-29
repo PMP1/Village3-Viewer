@@ -60,6 +60,64 @@
         return screenNearHorizontalSide(projectOverride) === "south" ? "north" : "south";
     }
 
+    function sectionExteriorRuns(footprint) {
+        const sections = footprint.sections ?? [];
+        const occupied = new Set();
+        for (const section of sections) {
+            for (let y = section.origin.y; y < section.origin.y + section.height; y++) {
+                for (let x = section.origin.x; x < section.origin.x + section.width; x++) {
+                    occupied.add(x + "," + y);
+                }
+            }
+        }
+        const doorAt = (side, x, y) => (footprint.doors ?? []).find(door => {
+            if (door.side !== side) return false;
+            if (side === "north") return x === footprint.origin.x + door.offset && y === footprint.origin.y;
+            if (side === "south") return x === footprint.origin.x + door.offset && y === footprint.origin.y + footprint.height;
+            if (side === "west") return x === footprint.origin.x && y === footprint.origin.y + door.offset;
+            return x === footprint.origin.x + footprint.width && y === footprint.origin.y + door.offset;
+        });
+        const grouped = new Map();
+        const add = (side, x, y) => {
+            const orientation = horizontal(side) ? "horizontal" : "vertical";
+            const fixed = orientation === "horizontal" ? y : x;
+            const key = side + ":" + fixed;
+            const door = doorAt(side, x, y);
+            const segment = {
+                layer: "exterior", side, orientation, x, y, length: 1,
+                ...(door ? { doorState: door.state, doorId: door.id } : {})
+            };
+            const list = grouped.get(key) ?? [];
+            list.push(segment);
+            grouped.set(key, list);
+        };
+        for (const key of occupied) {
+            const [x, y] = key.split(",").map(Number);
+            if (!occupied.has(x + "," + (y - 1))) add("north", x, y);
+            if (!occupied.has((x + 1) + "," + y)) add("east", x + 1, y);
+            if (!occupied.has(x + "," + (y + 1))) add("south", x, y + 1);
+            if (!occupied.has((x - 1) + "," + y)) add("west", x, y);
+        }
+        const runs = [];
+        for (const segments of grouped.values()) {
+            segments.sort((a, b) => a.orientation === "horizontal" ? a.x - b.x : a.y - b.y);
+            let run = [];
+            for (const segment of segments) {
+                const previous = run[run.length - 1];
+                const contiguous = !previous || (segment.orientation === "horizontal"
+                    ? segment.x === previous.x + 1
+                    : segment.y === previous.y + 1);
+                if (!contiguous) {
+                    runs.push(run);
+                    run = [];
+                }
+                run.push(segment);
+            }
+            if (run.length) runs.push(run);
+        }
+        return runs;
+    }
+
     // Convert a horizontal wall run into architectural modules. Input geometry
     // remains one metre per segment and doors remain exactly one metre.
     function groupHorizontalRun(segments) {
@@ -121,6 +179,27 @@
                 ? { ...segment, rearJoinAt: rear === "north" ? "start" : "end" }
                 : segment);
         };
+        if (footprint.sections?.length) {
+            const rear = screenRearHorizontalSide(projectOverride);
+            return sectionExteriorRuns(footprint).flatMap(run => {
+                const side = run[0].side;
+                if (horizontal(side)) {
+                    const face = side === rear ? "rear" : "front";
+                    return groupHorizontalRun(run).map((segment, index) => ({
+                        ...segment,
+                        face,
+                        ...(face === "front" && segment.role === "wall-bay-2"
+                            ? { variant: index % 2 === 0 ? "window" : "plain" }
+                            : {})
+                    }));
+                }
+                const classified = classifyRun(run);
+                const joinIndex = rear === "north" ? 0 : classified.length - 1;
+                return classified.map((segment, index) => index === joinIndex
+                    ? { ...segment, rearJoinAt: rear === "north" ? "start" : "end" }
+                    : segment);
+            });
+        }
         return [
             ...horizontalRun("north", origin),
             ...horizontalRun("south", { x: origin.x, y: origin.y + height }),
