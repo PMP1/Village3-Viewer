@@ -1,7 +1,11 @@
 (() => {
     const TREE_ASSET_PATH = "./assets/scenery/tree.svg";
+    const FOUNTAIN_ASSET_PATH = "./assets/scenery/village_fountain.png";
     const TREE_VISUAL_WIDTH_METRES = 2.4;
     const TREE_VISUAL_HEIGHT_METRES = 3.2;
+    const FOUNTAIN_VISUAL_WIDTH_METRES = 2;
+    const FOUNTAIN_VISUAL_HEIGHT_METRES = 3;
+    const FOUNTAIN_FOOTPRINT_DEPTH_METRES = 2;
     const DECORATION_MIN_SCALE = 7;
     const MAX_VISIBLE_DECORATION_TILES = 4500;
 
@@ -17,8 +21,20 @@
     });
     treeImage.src = window.__VILLAGE_VIEWER_ASSETS__?.[TREE_ASSET_PATH] ?? TREE_ASSET_PATH;
 
+    const fountainImage = new Image();
+    let fountainReady = false;
+    let fountainFailed = false;
+    fountainImage.addEventListener("load", () => {
+        fountainReady = true;
+        if (recording && cameraInitialised) renderMap();
+    });
+    fountainImage.addEventListener("error", () => {
+        fountainFailed = true;
+    });
+    fountainImage.src = window.__VILLAGE_VIEWER_ASSETS__?.[FOUNTAIN_ASSET_PATH] ?? FOUNTAIN_ASSET_PATH;
+
     function isWorldSceneryEntity(entity) {
-        return entity?.subtype === "tree";
+        return entity?.subtype === "tree" || entity?.subtype === "fountain";
     }
 
     function treePhysicalScreenBounds(entity, project) {
@@ -46,7 +62,7 @@
     }
 
     function treeSpriteBounds(entity, project) {
-        if (!isWorldSceneryEntity(entity)) return undefined;
+        if (entity?.subtype !== "tree") return undefined;
         const physical = treePhysicalScreenBounds(entity, project);
         const width = Math.max(8, TREE_VISUAL_WIDTH_METRES * project.scale);
         const height = Math.max(10, TREE_VISUAL_HEIGHT_METRES * project.scale);
@@ -59,6 +75,24 @@
             width,
             height,
             physical
+        };
+    }
+
+    function fountainSpriteBounds(entity, project) {
+        if (entity?.subtype !== "fountain") return undefined;
+        const point = project(entity.position);
+        const width = Math.max(8, FOUNTAIN_VISUAL_WIDTH_METRES * project.scale);
+        const height = Math.max(12, FOUNTAIN_VISUAL_HEIGHT_METRES * project.scale);
+        const footprintDepth = FOUNTAIN_FOOTPRINT_DEPTH_METRES * project.scale;
+        const bottom = point.y + footprintDepth;
+        return {
+            left: point.x - width / 2,
+            right: point.x + width / 2,
+            top: bottom - height,
+            bottom,
+            depthAnchorY: bottom,
+            width,
+            height
         };
     }
 
@@ -78,20 +112,23 @@
     }
 
     function drawWorldSceneryEntity(entity, project) {
-        if (!isWorldSceneryEntity(entity) || !treeReady) return false;
-        const bounds = treeSpriteBounds(entity, project);
+        if (!isWorldSceneryEntity(entity)) return false;
+        const isFountain = entity.subtype === "fountain";
+        const image = isFountain ? fountainImage : treeImage;
+        if (isFountain ? !fountainReady : !treeReady) return false;
+        const bounds = isFountain ? fountainSpriteBounds(entity, project) : treeSpriteBounds(entity, project);
         if (!bounds) return false;
         context.save();
-        context.imageSmoothingEnabled = false;
+        context.imageSmoothingEnabled = isFountain;
         context.drawImage(
-            treeImage,
+            image,
             Math.round(bounds.left),
             Math.round(bounds.top),
             Math.max(1, Math.round(bounds.width)),
             Math.max(1, Math.round(bounds.height))
         );
         context.restore();
-        drawTreeSelection(entity, bounds);
+        if (!isFountain) drawTreeSelection(entity, bounds);
         return true;
     }
 
@@ -322,7 +359,7 @@
 
     const entityScreenBoundsBeforeSceneryRenderer = entityScreenBounds;
     entityScreenBounds = function(entity, project) {
-        return treeSpriteBounds(entity, project) ?? entityScreenBoundsBeforeSceneryRenderer(entity, project);
+        return fountainSpriteBounds(entity, project) ?? treeSpriteBounds(entity, project) ?? entityScreenBoundsBeforeSceneryRenderer(entity, project);
     };
 
     const drawEntityBeforeSceneryRenderer = drawEntity;
@@ -345,14 +382,16 @@
 
     window.VillageSceneryRenderer = Object.freeze({
         treeAssetPath: TREE_ASSET_PATH,
+        fountainAssetPath: FOUNTAIN_ASSET_PATH,
         isWorldSceneryEntity,
         treePhysicalScreenBounds,
         treeSpriteBounds,
+        fountainSpriteBounds,
         mapFeatureContainsPoint,
         isDecorationExcluded,
         proceduralDecorationsForTile,
         drawProceduralScenery,
-        get ready() { return treeReady; },
-        get failed() { return treeFailed; }
+        get ready() { return treeReady && fountainReady; },
+        get failed() { return treeFailed || fountainFailed; }
     });
 })();
