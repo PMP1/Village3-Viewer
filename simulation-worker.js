@@ -493,7 +493,7 @@
       frontDoorSide: "south",
       shopProviderPosition: { x: 78.5, y: 95.5 },
       shopCustomerPosition: { x: 78.5, y: 96.5 },
-      workPosition: { x: 78, y: 94 },
+      workPosition: { x: 78, y: 93.5 },
       livingPosition: { x: 82, y: 94 }
     },
     millSite: {
@@ -3200,7 +3200,11 @@
     const workCentre = roomCentre(workroom);
     const ovenObstructionOrigin = {
       x: Math.floor(workCentre.x) - 1,
-      y: Math.floor(workCentre.y)
+      y: workroom.area.origin.y
+    };
+    const ovenWorkPosition = {
+      x: ovenObstructionOrigin.x + 1,
+      y: ovenObstructionOrigin.y + 1.5
     };
     return {
       id: options.id,
@@ -3248,11 +3252,11 @@
           type: "oven",
           placeId: options.id,
           roomId: workroom.id,
-          position: workCentre,
-          actionPointPosition: workCentre,
+          position: ovenWorkPosition,
+          actionPointPosition: ovenWorkPosition,
           physicalObstruction: {
             origin: ovenObstructionOrigin,
-            width: 1,
+            width: 2,
             height: 1
           }
         }),

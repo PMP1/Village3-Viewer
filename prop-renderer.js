@@ -1,6 +1,7 @@
 (() => {
     const PROP_ASSET_PATHS = Object.freeze({
         hearth: "./assets/props/home-hearth.png",
+        "bread-oven": "./assets/props/bakery-bread-oven.png",
         bed: "./assets/props/home-bed.png",
         "dining-table": "./assets/props/home-dining-table.png",
         "service-counter": "./assets/props/medieval-shop-counter.png",
@@ -13,6 +14,7 @@
 
     const PROP_DEFINITIONS = Object.freeze({
         hearth: Object.freeze({ visualWidth: 1.00, visualHeight: 3.00, baseFacing: "south", rotateWithFacing: false }),
+        "bread-oven": Object.freeze({ visualWidth: 2.00, visualHeight: 3.00, baseFacing: "south", rotateWithFacing: false }),
         bed: Object.freeze({ visualWidth: 1.10, visualHeight: 2.00, visualOffsetY: -0.70, baseFacing: "east", rotateWithFacing: false }),
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 2.00, visualHeight: 1.50, visualOffsetY: 0.50, baseFacing: "south", rotateWithFacing: false }),
@@ -39,6 +41,7 @@
 
     function propType(entity) {
         if (entity.subtype === "cart") return "cart";
+        if (entity.properties?.facilityType === "oven") return "bread-oven";
         if (entity.properties?.facilityType === "hearth") return "hearth";
         if (entity.properties?.resourceType === "bed") return "bed";
         if (entity.properties?.resourceType === "dining-seat") return "dining-seat";

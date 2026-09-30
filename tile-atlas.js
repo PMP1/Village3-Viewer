@@ -499,6 +499,7 @@ drawGrid = function(project) {
 function fixtureTileId(entity) {
     if (entity.subtype === "cart") return "fixture.cart";
     if (entity.subtype === "tree") return "scenery.tree";
+    if (entity.properties?.facilityType === "oven") return "fixture.oven";
     if (entity.properties?.facilityType === "hearth") return "fixture.hearth";
     if (entity.properties?.resourceType === "bed") return "fixture.bed";
     if (entity.properties?.resourceType === "dining-seat") return "fixture.dining-seat";
