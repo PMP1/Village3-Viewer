@@ -5,7 +5,7 @@
         "dining-table": "./assets/props/home-dining-table.png",
         "service-counter": "./assets/props/medieval-shop-counter.png",
         "dining-seat": "./assets/props/home-stool.svg",
-        cart: "./assets/props/cart.svg"
+        cart: "./assets/props/market-stall.png"
     });
 
     const DIRECTION_INDEX = Object.freeze({ north: 0, east: 1, south: 2, west: 3 });
@@ -17,7 +17,7 @@
         "dining-table": Object.freeze({ visualWidth: 1.40, visualHeight: 1.05, baseFacing: "south", rotateWithFacing: false }),
         "service-counter": Object.freeze({ visualWidth: 2.00, visualHeight: 1.50, visualOffsetY: 0.50, baseFacing: "south", rotateWithFacing: false }),
         "dining-seat": Object.freeze({ visualWidth: 0.72, visualHeight: 0.72, baseFacing: "south", rotateWithFacing: false }),
-        cart: Object.freeze({ visualWidth: 2.00, visualHeight: 1.55, baseFacing: "east", rotateWithFacing: true })
+        cart: Object.freeze({ visualWidth: 3.00, visualHeight: 4.00, visualOffsetY: 2.00, baseFacing: "south", rotateWithFacing: false })
     });
 
     const propImages = new Map();
@@ -68,12 +68,14 @@
     }
 
     function propFacing(entity) {
+        const type = propType(entity);
+        // The market stall has one authored south-facing view and must not rotate.
+        if (type === "cart") return "south";
+
         const explicit = entity.properties?.facing;
         if (typeof explicit === "string" && CARDINAL_DIRECTIONS.has(explicit)) return explicit;
 
-        const type = propType(entity);
         if (type === "dining-seat") return "south";
-        if (type === "cart") return "east";
         if (type === "service-counter") return "south";
         return PROP_DEFINITIONS[type]?.baseFacing ?? "south";
     }
