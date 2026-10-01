@@ -68,8 +68,10 @@ const verticalDoorSprite = (state, layer) => Object.freeze({...PNG_VERTICAL_DOOR
 
 // Side walls remain one-metre logical sections. Their 96 px canvas carries the
 // 64 px rise plus the 32 px descending run, independently of horizontal bays.
-const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
-const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_INTERIOR_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
+const PNG_INTERIOR_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
 const BUILDING_PNG_SPRITES = Object.freeze({
     "building.exterior.back.wall2.plain": PNG_EXTERIOR_FRONT_WALL_2,
@@ -88,8 +90,8 @@ const BUILDING_PNG_SPRITES = Object.freeze({
     "building.interior.wall.horizontal1.left": PNG_INTERIOR_WALL_1_LEFT,
     "building.interior.wall.horizontal1.right": PNG_INTERIOR_WALL_1_RIGHT,
     "building.interior.wall.horizontal": PNG_HORIZONTAL,
-    "building.interior.wall.vertical.west": PNG_VERTICAL_WEST,
-    "building.interior.wall.vertical.east": PNG_VERTICAL_EAST,
+    "building.interior.wall.vertical.west": PNG_INTERIOR_VERTICAL_WEST,
+    "building.interior.wall.vertical.east": PNG_INTERIOR_VERTICAL_EAST,
     "building.interior.wall.end.east": PNG_HORIZONTAL,
     "building.interior.wall.end.west": PNG_HORIZONTAL,
     "building.exterior.front.door.open.horizontal": FRONT_DOOR_OPEN,
@@ -340,3 +342,4 @@ window.VillageBuildingAtlas = Object.freeze({
     get ready() { return buildingAtlasReady; },
     get failed() { return buildingAtlasFailed; }
 });
+
