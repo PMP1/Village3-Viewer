@@ -68,8 +68,8 @@ const verticalDoorSprite = (state, layer) => Object.freeze({...PNG_VERTICAL_DOOR
 
 // Side walls remain one-metre logical sections. Their 96 px canvas carries the
 // 64 px rise plus the 32 px descending run, independently of horizontal bays.
-const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
-const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const PNG_INTERIOR_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_INTERIOR_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
