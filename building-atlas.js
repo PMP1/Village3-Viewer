@@ -66,10 +66,11 @@ const PNG_VERTICAL_DOOR = Object.freeze({"anchorX":16,"anchorY":64,"drawHeight":
 const horizontalDoorSprite = (state, layer) => Object.freeze({...PNG_HORIZONTAL_DOOR,...(state === 0 ? {"drawHeight":64,"sourceHeight":128} : {}),"sourceX":state * 64,"sourceY":layer * 128});
 const verticalDoorSprite = (state, layer) => Object.freeze({...PNG_VERTICAL_DOOR,...(state === 0 ? {"drawHeight":80,"sourceHeight":160} : {}),"sourceX":(layer * 4 + state) * 64});
 
-// Side walls remain one-metre logical sections. Their 96 px canvas carries the
-// 64 px rise plus the 32 px descending run, independently of horizontal bays.
-const PNG_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
-const PNG_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":96,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
+// Side walls remain one-metre logical sections. Anchor to the artwork's visible
+// outer edge inside its transparent source padding, and to the wall-floor corner
+// at y=64; the remaining 32 px carry the descending run.
+const PNG_VERTICAL_WEST = Object.freeze({"anchorX":9.5,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
+const PNG_VERTICAL_EAST = Object.freeze({"anchorX":22.5,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":192,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const PNG_INTERIOR_VERTICAL_WEST = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 const PNG_INTERIOR_VERTICAL_EAST = Object.freeze({"anchorX":32,"anchorY":64,"drawHeight":96,"drawWidth":32,"sourceHeight":96,"sourceWidth":32,"sourceX":0,"sourceY":0});
 
@@ -342,3 +343,4 @@ window.VillageBuildingAtlas = Object.freeze({
     get ready() { return buildingAtlasReady; },
     get failed() { return buildingAtlasFailed; }
 });
+
