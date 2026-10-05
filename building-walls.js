@@ -175,19 +175,9 @@
         const sideRun = (side, runOrigin) => {
             const run = classifyRun(rawRun("exterior", side, runOrigin, height, doors(side)));
             const joinIndex = rear === "north" ? 0 : run.length - 1;
-            return run.map((segment, index) => ({
-                ...segment,
-                ...(index === joinIndex
-                    ? { rearJoinAt: rear === "north" ? "start" : "end" }
-                    : {}),
-                // The horizontal corner posts own the first and last projected
-                // metre of each exterior side. Keep the logical wall segment,
-                // but let the atlas omit its overlapping side-wall artwork.
-                ...(!footprint.sections?.length && run.length > 2 && segment.role === "end" &&
-                    (index === 0 || index === run.length - 1)
-                    ? { cornerOwnedSideEnd: true }
-                    : {})
-            }));
+            return run.map((segment, index) => index === joinIndex
+                ? { ...segment, rearJoinAt: rear === "north" ? "start" : "end" }
+                : segment);
         };
         if (footprint.sections?.length) {
             const rear = screenRearHorizontalSide(projectOverride);

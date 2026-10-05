@@ -286,7 +286,7 @@ function sharedInteriorPostSegments(segments) {
 
 function buildingRenderSegments(segments) {
     return [
-        ...segments.filter(segment => !segment.cornerOwnedSideEnd),
+        ...segments,
         ...sharedRearPostSegments(segments),
         ...sharedFrontPostSegments(segments),
         ...sharedInteriorPostSegments(segments)
