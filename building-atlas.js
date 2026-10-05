@@ -195,7 +195,14 @@ for (const path of buildingPngPaths) {
 }
 
 function buildingSpriteRect(segment, sprite, project) {
-    const base = project({ x: segment.x, y: segment.y });
+    // Vertical wall segments describe a one-metre run from their north/top
+    // endpoint. Anchor side-wall artwork to the opposite, south/bottom tile
+    // corner so its base joins the horizontal wall at the same footprint edge.
+    const anchorPoint = segment.orientation === "vertical" &&
+        (segment.role === "straight" || segment.role === "end")
+        ? { x: segment.x, y: segment.y + (segment.length ?? 1) }
+        : { x: segment.x, y: segment.y };
+    const base = project(anchorPoint);
     const scale = project.scale / SOURCE_TILE_PIXELS;
     const x = Math.round(base.x - sprite.anchorX * scale);
     const y = Math.round(base.y - sprite.anchorY * scale);
