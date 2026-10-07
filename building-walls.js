@@ -264,11 +264,15 @@
         const paintBase = segment => segment.rearJoinAt === "end"
             ? { x: segment.x, y: segment.y + (segment.length ?? 1) }
             : segment;
-        // Side walls sort before a rear bay at the same base depth, so they tuck
-        // behind the bay's end post instead of covering it.
+        // At a rear corner the horizontal panel paints first, the joining side
+        // section paints over its face, and the shared stone post caps both.
+        // This preserves the complete one-metre side section at the join.
+        const rearJoinLayer = segment => segment.role === "shared-rear-post"
+            ? 2
+            : segment.rearJoinAt ? 1 : 0;
         return [...segments].sort((a, b) => {
             const yOrder = project ? project(paintBase(a)).y - project(paintBase(b)).y : a.y - b.y;
-            return yOrder ||
+            return yOrder || rearJoinLayer(a) - rearJoinLayer(b) ||
                 Number(a.orientation === "horizontal") - Number(b.orientation === "horizontal") ||
                 a.x - b.x;
         });
