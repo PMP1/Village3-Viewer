@@ -428,6 +428,9 @@ function raisedItemPriority(item) {
     // Complete the vertical and horizontal wall artwork before its structural
     // posts are added as the final detail layer.
     if (structuralPost) return 40;
+    // Rear side sections share the rear panel's depth. Their top surfaces must
+    // cover that panel, while the shared stone post still covers both.
+    if (item.segment.rearJoinAt) return 31;
     return item.segment.orientation === "horizontal" ? 30 : 20;
 }
 
