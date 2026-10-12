@@ -46,17 +46,18 @@ const BUILDING_SPRITES = Object.freeze({
 });
 
 const PNG_HORIZONTAL = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":64,"sourceWidth":32,"sourceX":0,"sourceY":0});
-// The generated PNGs contain 114 rows of visible art followed by 14 transparent
-// rows. Sample only the visible height so the stone base lands on the physical
-// wall boundary instead of floating above the floor edge.
-const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":114,"sourceWidth":96,"sourceX":16,"sourceY":0});
-const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":114,"sourceWidth":64,"sourceX":32,"sourceY":0});
+// Sample from the visible beam top (row 9) through the complete foundation
+// (row 120). Transparent headroom must not lower the beam relative to side
+// walls; the bottom anchor and full 64 px wall height remain unchanged.
+const PNG_EXTERIOR_FRONT_WALL_2 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":64,"sourceHeight":112,"sourceWidth":96,"sourceX":16,"sourceY":9});
+const PNG_EXTERIOR_FRONT_WALL_1 = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":112,"sourceWidth":64,"sourceX":32,"sourceY":9});
 // Interior fillers keep the timber edge contained in the plain wall source;
 // exterior fillers receive their structural posts as separate overlays.
 const PNG_INTERIOR_WALL_1_LEFT = Object.freeze({...PNG_EXTERIOR_FRONT_WALL_1,"sourceX":16});
 const PNG_INTERIOR_WALL_1_RIGHT = Object.freeze({...PNG_EXTERIOR_FRONT_WALL_1,"sourceX":48});
-const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":114,"sourceWidth":16,"sourceX":0,"sourceY":0});
-const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":114,"sourceWidth":24,"sourceX":0,"sourceY":0});
+// The separately supplied overlays have their own transparent headroom.
+const PNG_EXTERIOR_FRONT_POST = Object.freeze({"anchorX":4,"anchorY":64,"drawHeight":64,"drawWidth":8,"sourceHeight":106,"sourceWidth":16,"sourceX":0,"sourceY":8});
+const PNG_EXTERIOR_FRONT_CORNER_PIER = Object.freeze({"anchorX":6,"anchorY":64,"drawHeight":64,"drawWidth":12,"sourceHeight":111,"sourceWidth":24,"sourceX":0,"sourceY":3});
 const FRONT_DOORWAY = Object.freeze({"anchorX":0,"anchorY":64,"drawHeight":64,"drawWidth":32,"sourceHeight":128,"sourceWidth":64,"sourceX":0,"sourceY":0});
 const FRONT_DOOR_OPEN = Object.freeze({...FRONT_DOORWAY,"drawHeight":80,"sourceHeight":160,"sourceX":64});
 const FRONT_DOOR_CLOSED = Object.freeze({...FRONT_DOORWAY,"sourceX":128});
